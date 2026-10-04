@@ -52,12 +52,16 @@ export class AudioCaptureService {
         this.scriptProcessor.onaudioprocess = (e) => {
           if (!this.isCapturing || !this.onDataCallback) return;
           const input = e.inputBuffer.getChannelData(0);
-          const pcm16 = new Int16Array(input.length);
-          for (let i = 0; i < input.length; i++) {
+          const sampleCount = input.length;
+          const payload = new ArrayBuffer(8 + sampleCount * 2);
+          const f64 = new Float64Array(payload, 0, 1);
+          f64[0] = Date.now() / 1000.0;
+          const pcm16 = new Int16Array(payload, 8, sampleCount);
+          for (let i = 0; i < sampleCount; i++) {
             let s = Math.max(-1, Math.min(1, input[i]));
             pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
           }
-          this.onDataCallback(pcm16.buffer);
+          this.onDataCallback(payload);
         };
         source.connect(this.scriptProcessor);
         this.scriptProcessor.connect(this.audioContext.destination);

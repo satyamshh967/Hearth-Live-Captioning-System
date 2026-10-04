@@ -36,13 +36,21 @@ class PCMRecorderProcessor extends AudioWorkletProcessor {
   }
 
   _emitChunk(float32Array) {
+    // 8-byte header: Float64 t_capture in epoch seconds (matching time.time() in Python)
+    const t_capture = Date.now() / 1000.0;
+    const sampleCount = float32Array.length;
+    const payload = new ArrayBuffer(8 + sampleCount * 2);
+
+    const f64 = new Float64Array(payload, 0, 1);
+    f64[0] = t_capture;
+
     // Convert Float32 [-1.0, 1.0] to Int16 [-32768, 32767]
-    const int16Array = new Int16Array(float32Array.length);
-    for (let i = 0; i < float32Array.length; i++) {
+    const int16 = new Int16Array(payload, 8, sampleCount);
+    for (let i = 0; i < sampleCount; i++) {
       let s = Math.max(-1, Math.min(1, float32Array[i]));
-      int16Array[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+      int16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
     }
-    this.port.postMessage(int16Array.buffer, [int16Array.buffer]);
+    this.port.postMessage(payload, [payload]);
   }
 }
 
