@@ -1,0 +1,17 @@
+{
+  "name": "Hearth - Assistive Family Captions",
+  "short_name": "Hearth",
+  "description": "Private, offline, live captioning for the family table.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0F1117",
+  "theme_color": "#F59E0B",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
