@@ -17,6 +17,7 @@ export interface Utterance {
   is_final: boolean;
   timestamp: number;
   addressed_to_me?: boolean;
+  task?: 'transcribe' | 'translate';
 }
 
 export interface QuickReply {

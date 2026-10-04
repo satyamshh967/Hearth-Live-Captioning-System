@@ -49,6 +49,7 @@ export const App: React.FC = () => {
   const [activeAlert, setActiveAlert] = useState<{ vocative: string; utt_id: string } | null>(null);
   const [quickReplies, setQuickReplies] = useState<QuickReply[]>([]);
   const [plainLanguageMode, setPlainLanguageMode] = useState(false);
+  const [translateMode, setTranslateMode] = useState(false);
 
   // Modals & Drawers
   const [isCatchupOpen, setIsCatchupOpen] = useState(false);
@@ -148,6 +149,7 @@ export const App: React.FC = () => {
     if (msg.type === 'status') {
       if (msg.latency_ms) setLatencyMs(msg.latency_ms);
       if (msg.profile) setModelProfile(msg.profile);
+      if (msg.task) setTranslateMode(msg.task === 'translate');
     } else if (msg.type === 'partial') {
       setPartialText(msg.text || '');
     } else if (msg.type === 'final') {
@@ -158,6 +160,7 @@ export const App: React.FC = () => {
         speaker_id: msg.speaker_id,
         text: msg.text,
         lang: msg.lang || 'en',
+        task: msg.task || (translateMode ? 'translate' : 'transcribe'),
         start: msg.start || 0,
         end: msg.end || 0,
         words: msg.words || [],
@@ -304,6 +307,17 @@ export const App: React.FC = () => {
     loadLexicon();
   };
 
+  // Toggle live speech translation mode
+  const handleToggleTranslate = () => {
+    setTranslateMode((prev) => {
+      const next = !prev;
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({ type: 'set_task', task: next ? 'translate' : 'transcribe' }));
+      }
+      return next;
+    });
+  };
+
   // Plain language request
   const handleRequestPlainLanguage = async (uttId: string, text: string) => {
     try {
@@ -327,6 +341,8 @@ export const App: React.FC = () => {
         isListening={isListening}
         onToggleListening={handleToggleListening}
         deviceRole={deviceRole}
+        translateMode={translateMode}
+        onToggleTranslate={handleToggleTranslate}
         plainLanguageMode={plainLanguageMode}
         onTogglePlainLanguage={() => setPlainLanguageMode((prev) => !prev)}
         onOpenCatchup={handleOpenCatchup}

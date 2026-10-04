@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Utterance, WordItem } from '../types';
-import { ChevronDown, Edit2, Stethoscope } from 'lucide-react';
+import { ChevronDown, Edit2, Stethoscope, Languages } from 'lucide-react';
 
 interface CaptionStreamProps {
   utterances: Utterance[];
@@ -112,6 +112,12 @@ export const CaptionStream: React.FC<CaptionStreamProps> = ({
                   {utt.addressed_to_me && (
                     <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 font-semibold">
                       Addressed to you
+                    </span>
+                  )}
+                  {utt.task === 'translate' && (
+                    <span className="flex items-center space-x-1 text-xs px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/40 font-semibold">
+                      <Languages className="w-3 h-3" />
+                      <span>Translated to English</span>
                     </span>
                   )}
                 </div>

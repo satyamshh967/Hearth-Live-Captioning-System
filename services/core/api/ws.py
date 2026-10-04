@@ -73,6 +73,9 @@ class AudioSessionState:
         self.is_speaking = False
         self.speech_start_time = 0.0
         self.recent_utterance_history: List[Dict] = []
+        self.task: str = "transcribe"  # 'transcribe' or 'translate'
+        self.is_processing_partial: bool = False
+        self.is_processing_final: bool = False
 
 
 class HearthWSServer:
@@ -175,6 +178,19 @@ class HearthWSServer:
                 "speakers": recap_result.speakers_involved,
             }))
 
+        elif msg_type == "set_task":
+            task = data.get("task", "transcribe")
+            if task in ("transcribe", "translate"):
+                state.task = task
+                logger.info(f"Room {state.room_id} task set to: {task}")
+                await websocket.send_text(json.dumps({
+                    "type": "status",
+                    "task": state.task,
+                    "profile": self.config.profile,
+                    "model": self.config.asr.model_size,
+                    "speakers": self.diarizer.get_speakers(),
+                }))
+
         elif msg_type == "request_plain_language":
             utt_id = data.get("utt_id")
             original_text = data.get("text", "")
@@ -208,24 +224,19 @@ class HearthWSServer:
                 state.speech_start_time = now
                 state.current_utt_id = str(uuid.uuid4())[:8]
 
-        # Rolling partial transcription every 700ms while speaking
+        # Rolling partial transcription every 800ms while speaking (non-blocking thread)
         min_bytes_for_partial = int(16000 * 2 * 0.8) # 0.8s
-        if state.is_speaking and (now - state.last_partial_time > 0.7) and len(state.audio_buffer) >= min_bytes_for_partial:
+        if (
+            state.is_speaking
+            and not state.is_processing_partial
+            and not state.is_processing_final
+            and (now - state.last_partial_time > 0.8)
+            and len(state.audio_buffer) >= min_bytes_for_partial
+        ):
             state.last_partial_time = now
-            # Take last 2 seconds for rolling partial
-            window_bytes = state.audio_buffer[-int(16000 * 2 * 2.0):]
-            audio_f32 = np.frombuffer(window_bytes, dtype=np.int16).astype(np.float32) / 32768.0
-            try:
-                partial_text = self.asr_provider.transcribe_stream(audio_f32)
-                if partial_text:
-                    await self.manager.broadcast(state.room_id, {
-                        "type": "partial",
-                        "utt_id": state.current_utt_id,
-                        "text": partial_text,
-                        "lang": "en",
-                    })
-            except Exception as e:
-                logger.debug(f"Partial transcribe error: {e}")
+            state.is_processing_partial = True
+            window_bytes = bytes(state.audio_buffer[-int(16000 * 2 * 2.0):])
+            asyncio.create_task(self._run_async_partial(state, window_bytes))
 
         # Check utterance end condition:
         # Either silence duration > 400ms after speaking, or maximum duration (8 seconds) reached
@@ -235,20 +246,47 @@ class HearthWSServer:
         if (state.is_speaking and silence_duration >= 0.40) or max_duration_reached:
             # Utterance complete!
             state.is_speaking = False
+            state.is_processing_final = True
             total_bytes = len(state.audio_buffer)
             if total_bytes < 16000 * 2 * 0.4: # Ignore extremely brief clicks (< 400ms)
                 state.audio_buffer.clear()
+                state.is_processing_final = False
                 return
 
             audio_full = np.frombuffer(state.audio_buffer, dtype=np.int16).astype(np.float32) / 32768.0
             state.audio_buffer.clear()
 
-            # Execute transcription and diarization
+            # Execute transcription and diarization on worker thread (never blocks event loop)
+            asyncio.create_task(self._run_async_final(state, audio_full, state.current_utt_id))
+
+    async def _run_async_partial(self, state: AudioSessionState, window_bytes: bytes):
+        """Asynchronously compute rolling partial without blocking websocket frames."""
+        try:
+            audio_f32 = np.frombuffer(window_bytes, dtype=np.int16).astype(np.float32) / 32768.0
+            partial_text = await asyncio.to_thread(self.asr_provider.transcribe_stream, audio_f32, task=state.task)
+            if partial_text and state.is_speaking:
+                await self.manager.broadcast(state.room_id, {
+                    "type": "partial",
+                    "utt_id": state.current_utt_id,
+                    "text": partial_text,
+                    "lang": "en",
+                    "task": state.task,
+                })
+        except Exception as e:
+            logger.debug(f"Partial transcribe error: {e}")
+        finally:
+            state.is_processing_partial = False
+
+    async def _run_async_final(self, state: AudioSessionState, audio_full: np.ndarray, utt_id: str):
+        """Asynchronously compute final caption and diarization on worker threads."""
+        try:
             t_start = time.time()
             prompt = self.lexicon_store.get_prompt_biasing_string()
-            result: ASRResult = self.asr_provider.transcribe(audio_full, initial_prompt=prompt)
+            result: ASRResult = await asyncio.to_thread(
+                self.asr_provider.transcribe, audio_full, initial_prompt=prompt, task=state.task
+            )
             result = self.post_processor.process_result(result)
-            speaker_seg = self.diarizer.assign_speaker(audio_full)
+            speaker_seg = await asyncio.to_thread(self.diarizer.assign_speaker, audio_full)
 
             # Skip empty hallucinations
             if not result.text.strip():
@@ -259,11 +297,12 @@ class HearthWSServer:
             # Broadcast final caption IMMEDIATELY (critical path sub-2s)
             final_msg = {
                 "type": "final",
-                "utt_id": state.current_utt_id,
+                "utt_id": utt_id,
                 "speaker": speaker_seg.display_name,
                 "speaker_id": speaker_seg.speaker_id,
                 "text": result.text,
                 "lang": result.language,
+                "task": state.task,
                 "start": result.start,
                 "end": result.end,
                 "words": [{"w": w.word, "conf": w.confidence} for w in result.words],
@@ -272,10 +311,11 @@ class HearthWSServer:
             await self.manager.broadcast(state.room_id, final_msg)
 
             # Append to session history & SQLite
+            now = time.time()
             utt_record = {
                 "speaker": speaker_seg.display_name,
                 "text": result.text,
-                "utt_id": state.current_utt_id,
+                "utt_id": utt_id,
                 "lang": result.language,
                 "time": now,
             }
@@ -285,7 +325,7 @@ class HearthWSServer:
 
             self.session_store.append_utterance(
                 session_id=state.session_id,
-                utt_id=state.current_utt_id,
+                utt_id=utt_id,
                 speaker=speaker_seg.display_name,
                 text=result.text,
                 lang=result.language,
@@ -295,7 +335,11 @@ class HearthWSServer:
             )
 
             # Fire async intelligence checks concurrently (never blocks ASR)
-            asyncio.create_task(self._run_async_intelligence(state, state.current_utt_id, result.text))
+            asyncio.create_task(self._run_async_intelligence(state, utt_id, result.text))
+        except Exception as e:
+            logger.error(f"Error in async final processing: {e}", exc_info=True)
+        finally:
+            state.is_processing_final = False
 
     async def _run_async_intelligence(self, state: AudioSessionState, utt_id: str, text: str):
         """Asynchronous intelligence layer: Addressed-to-me alert & Quick replies."""

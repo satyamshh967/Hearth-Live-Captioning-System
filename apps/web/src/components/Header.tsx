@@ -10,6 +10,7 @@ import {
   Sliders,
   FolderClock,
   Sparkles,
+  Languages,
 } from 'lucide-react';
 import { DeviceRole } from '../types';
 
@@ -17,6 +18,8 @@ interface HeaderProps {
   isListening: boolean;
   onToggleListening: () => void;
   deviceRole: DeviceRole;
+  translateMode: boolean;
+  onToggleTranslate: () => void;
   plainLanguageMode: boolean;
   onTogglePlainLanguage: () => void;
   onOpenCatchup: () => void;
@@ -33,6 +36,8 @@ export const Header: React.FC<HeaderProps> = ({
   isListening,
   onToggleListening,
   deviceRole,
+  translateMode,
+  onToggleTranslate,
   plainLanguageMode,
   onTogglePlainLanguage,
   onOpenCatchup,
@@ -92,6 +97,20 @@ export const Header: React.FC<HeaderProps> = ({
           <Sparkles className="w-4 h-4 text-indigo-400" />
           <span className="hidden sm:inline">What did I miss?</span>
           <span className="sm:hidden">Recap</span>
+        </button>
+
+        {/* Live Translator to English toggle */}
+        <button
+          onClick={onToggleTranslate}
+          className={`flex items-center space-x-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all border ${
+            translateMode
+              ? 'bg-blue-900/80 border-blue-500 text-blue-100 shadow'
+              : 'bg-slate-800/80 hover:bg-slate-800 border-slate-700 text-slate-300'
+          }`}
+          title="Live Speech Translator: Translates multilingual/Hindi speech directly into English captions"
+        >
+          <Languages className="w-4 h-4 text-blue-400" />
+          <span className="hidden md:inline">Live Translate</span>
         </button>
 
         {/* Doctor Visit / Plain Language toggle */}

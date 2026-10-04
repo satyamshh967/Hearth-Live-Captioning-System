@@ -14,11 +14,12 @@ class MockASRProvider(ASRProvider):
         self.response_text = response_text
         self.sample_count = 0
 
-    def transcribe(self, audio: np.ndarray, sample_rate: int = 16000, initial_prompt: Optional[str] = None) -> ASRResult:
+    def transcribe(self, audio: np.ndarray, sample_rate: int = 16000, initial_prompt: Optional[str] = None, task: str = "transcribe") -> ASRResult:
         t0 = time.time()
         self.sample_count += 1
         
-        words_list = self.response_text.split()
+        text = "Dadaji, did you take your Metformin today with warm water?" if task == "translate" else self.response_text
+        words_list = text.split()
         duration = len(audio) / sample_rate if len(audio) > 0 else 1.5
         step = duration / max(len(words_list), 1)
 
@@ -35,7 +36,7 @@ class MockASRProvider(ASRProvider):
 
         return ASRResult(
             utt_id=str(uuid.uuid4())[:8],
-            text=self.response_text,
+            text=text,
             language="en",
             start=0.0,
             end=round(duration, 2),
@@ -44,6 +45,7 @@ class MockASRProvider(ASRProvider):
             latency_ms=round(latency_ms, 2)
         )
 
-    def transcribe_stream(self, audio_chunk: np.ndarray, sample_rate: int = 16000) -> str:
-        words = self.response_text.split()
+    def transcribe_stream(self, audio_chunk: np.ndarray, sample_rate: int = 16000, task: str = "transcribe") -> str:
+        text = "Dadaji, did you take" if task == "translate" else self.response_text
+        words = text.split()
         return " ".join(words[:min(4, len(words))])

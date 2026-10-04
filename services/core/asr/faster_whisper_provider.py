@@ -35,7 +35,7 @@ class FasterWhisperProvider(ASRProvider):
             download_root=None,
         )
 
-    def transcribe(self, audio: np.ndarray, sample_rate: int = 16000, initial_prompt: Optional[str] = None) -> ASRResult:
+    def transcribe(self, audio: np.ndarray, sample_rate: int = 16000, initial_prompt: Optional[str] = None, task: str = "transcribe") -> ASRResult:
         t0 = time.time()
         
         # Audio should be float32 normalized between -1.0 and 1.0
@@ -53,6 +53,7 @@ class FasterWhisperProvider(ASRProvider):
             audio,
             beam_size=self.config.beam_size,
             language=self.config.language,  # None means auto-detect
+            task=task,
             initial_prompt=prompt,
             vad_filter=self.config.vad_filter,
             vad_parameters=vad_parameters,
@@ -89,8 +90,8 @@ class FasterWhisperProvider(ASRProvider):
             latency_ms=round(latency_ms, 2)
         )
 
-    def transcribe_stream(self, audio_chunk: np.ndarray, sample_rate: int = 16000) -> str:
-        """Fast partial transcription for rolling stream (beam_size=1, no word timestamps)."""
+    def transcribe_stream(self, audio_chunk: np.ndarray, sample_rate: int = 16000, task: str = "transcribe") -> str:
+        """Fast partial transcription or translation for rolling stream (beam_size=1, no word timestamps)."""
         if len(audio_chunk) < sample_rate * 0.5:
             return ""
             
@@ -103,6 +104,7 @@ class FasterWhisperProvider(ASRProvider):
             audio_chunk,
             beam_size=1,
             language=self.config.language,
+            task=task,
             initial_prompt=self.config.initial_prompt,
             vad_filter=False,
             word_timestamps=False,
