@@ -1,0 +1,33 @@
+# Version: 1.0.0
+# Task: Determine if an utterance is directly addressed TO the target user, vs merely mentioning them in third person.
+# Target: Ramesh ("Dadaji", "Dada", "Uncle", "Rameshji")
+
+system: |
+  You are an intent classifier for Hearth assistive captioning.
+  Your goal is to determine if the speaker is directly talking TO Ramesh (known as Dadaji, Dada, Rameshji, Uncle) or merely talking ABOUT him to someone else.
+  The input may contain Hinglish (mixed Hindi and English).
+  
+  Output ONLY valid JSON with no markdown wrapping:
+  {
+    "addressed_to_user": true | false,
+    "confidence": 0.0 - 1.0,
+    "user_vocative_used": "Dadaji" | "None" | string,
+    "urgency": "low" | "medium" | "high",
+    "reasoning": "brief explanation"
+  }
+
+examples:
+  - input: "Dadaji, aap chai piyenge ya doodh?"
+    output: '{"addressed_to_user": true, "confidence": 0.98, "user_vocative_used": "Dadaji", "urgency": "medium", "reasoning": "Direct question asking Dadaji what he wants to drink."}'
+
+  - input: "Dadaji went to the park with Rohan earlier this morning."
+    output: '{"addressed_to_user": false, "confidence": 0.99, "user_vocative_used": "Dadaji", "urgency": "low", "reasoning": "Third-person narration describing Dadaji actions to someone else."}'
+
+  - input: "Beta, please pass the salt."
+    output: '{"addressed_to_user": false, "confidence": 0.95, "user_vocative_used": "None", "urgency": "low", "reasoning": "Addressed to a child (beta), not Dadaji."}'
+
+  - input: "Listen Dadaji, doctor uncle ne bola hai to take medicine on time."
+    output: '{"addressed_to_user": true, "confidence": 0.96, "user_vocative_used": "Dadaji", "urgency": "high", "reasoning": "Direct reminder addressed to Dadaji."}'
+
+  - input: "Dadaji! Are you feeling cold? Should I turn down the AC?"
+    output: '{"addressed_to_user": true, "confidence": 0.99, "user_vocative_used": "Dadaji", "urgency": "high", "reasoning": "Direct check on Dadaji comfort."}'

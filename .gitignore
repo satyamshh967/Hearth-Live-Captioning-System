@@ -1,0 +1,35 @@
+# Python
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Node
+node_modules/
+apps/web/dist/
+apps/web/.vite/
+apps/web/node_modules/
+.npm/
+
+# Environment / Local Secrets
+.env
+.env.local
+*.local
+
+# SQLite & Data
+*.db
+*.sqlite3
+services/core/data/
+*.wav.tmp
+eval/recordings/raw/
+
+# OS
+.DS_Store
+Thumbs.db

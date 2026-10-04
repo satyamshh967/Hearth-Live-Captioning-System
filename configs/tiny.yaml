@@ -1,0 +1,37 @@
+# Hearth Configuration: Tiny Profile (Raspberry Pi / Low-end CPU)
+profile: tiny
+
+asr:
+  provider: faster_whisper
+  model_size: tiny
+  device: cpu
+  compute_type: int8
+  beam_size: 1
+  language: null # Auto-detect per utterance for code-switching
+  initial_prompt: "Dadaji, Dadi, Ramesh, Sunita, Rohan, Priya, Aarav, Ananya, Metformin, Telmisartan, Atorvastatin, Dal makhani, Chai, Haanji, Achha."
+  vad_filter: true
+  min_silence_duration_ms: 350
+  chunk_duration_sec: 1.5
+
+diarization:
+  provider: lightweight_centroid
+  min_speakers: 1
+  max_speakers: 5
+  similarity_threshold: 0.65
+  embedding_dimension: 128
+
+llm:
+  provider: local_rule_fallback # Instant fallback if Ollama/Local LLM is absent
+  endpoint: "http://localhost:11434/v1"
+  model: "qwen2.5:3b"
+  timeout_sec: 2.5
+  temperature: 0.1
+
+tts:
+  provider: web_speech_fallback
+  voice: "en-IN"
+
+privacy:
+  store_audio: false
+  transcript_retention_days: 7
+  allow_network_telemetry: false
