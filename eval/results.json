@@ -1,0 +1,42 @@
+{
+  "hardware": {
+    "os": "Windows 11",
+    "cpu": "Intel/AMD Multi-core Host",
+    "gpu": "NVIDIA GeForce RTX 5070 (12GB VRAM)"
+  },
+  "intent_metrics": {
+    "addressed_to_me": {
+      "precision": 0.926,
+      "recall": 1.0,
+      "f1": 0.962,
+      "accuracy": 0.96,
+      "tp": 25,
+      "fp": 2,
+      "fn": 0,
+      "tn": 23
+    },
+    "question_detection": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "accuracy": 1.0,
+      "tp": 24,
+      "fp": 0,
+      "fn": 0,
+      "tn": 26
+    },
+    "sample_size": 50
+  },
+  "asr_metrics": {
+    "model_size": "tiny",
+    "device": "cpu",
+    "compute_type": "int8",
+    "wer_without_lexicon": 30.54,
+    "wer_with_lexicon": 39.52,
+    "latency_p50_ms": 989.5,
+    "latency_p90_ms": 1065.8,
+    "latency_p95_ms": 1634.2,
+    "clip_count": 16
+  },
+  "timestamp": "2026-10-04 22:55:41"
+}

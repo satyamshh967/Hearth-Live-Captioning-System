@@ -1,0 +1,402 @@
+[
+  {
+    "id": "utt_01",
+    "text": "Dadaji, aapne Metformin li kya with warm water?",
+    "addressed_to_me": true,
+    "is_question": true,
+    "vocative": "Dadaji",
+    "context": "medication_direct_question"
+  },
+  {
+    "id": "utt_02",
+    "text": "Dadaji went for a morning walk in the park with Rohan.",
+    "addressed_to_me": false,
+    "is_question": false,
+    "vocative": "Dadaji",
+    "context": "third_person_narration"
+  },
+  {
+    "id": "utt_03",
+    "text": "Rohan, please pass the dal makhani to Dadaji.",
+    "addressed_to_me": false,
+    "is_question": false,
+    "vocative": "Dadaji",
+    "context": "dining_table_instruction_to_other"
+  },
+  {
+    "id": "utt_04",
+    "text": "Listen Dadaji, we have an appointment with Doctor Verma on Thursday.",
+    "addressed_to_me": true,
+    "is_question": false,
+    "vocative": "Dadaji",
+    "context": "direct_imperative_alert"
+  },
+  {
+    "id": "utt_05",
+    "text": "Are you feeling cold Dadaji? Should I turn down the AC?",
+    "addressed_to_me": true,
+    "is_question": true,
+    "vocative": "Dadaji",
+    "context": "direct_comfort_question"
+  },
+  {
+    "id": "utt_06",
+    "text": "Priya was telling me that Dadaji really enjoyed the vegetable pulao yesterday.",
+    "addressed_to_me": false,
+    "is_question": false,
+    "vocative": "Dadaji",
+    "context": "third_person_conversation"
+  },
+  {
+    "id": "utt_07",
+    "text": "Dadaji, do you want half a cup of warm tea right now?",
+    "addressed_to_me": true,
+    "is_question": true,
+    "vocative": "Dadaji",
+    "context": "direct_offer"
+  },
+  {
+    "id": "utt_08",
+    "text": "Beta, please finish your homework before dinner.",
+    "addressed_to_me": false,
+    "is_question": false,
+    "vocative": "None",
+    "context": "child_address"
+  },
+  {
+    "id": "utt_09",
+    "text": "Rameshji, please sign these medical insurance documents when you are free.",
+    "addressed_to_me": true,
+    "is_question": false,
+    "vocative": "Rameshji",
+    "context": "formal_name_direct_request"
+  },
+  {
+    "id": "utt_10",
+    "text": "I checked with Uncle earlier and he said he had already taken the evening pills.",
+    "addressed_to_me": false,
+    "is_question": false,
+    "vocative": "Uncle",
+    "context": "third_person_report"
+  },
+  {
+    "id": "utt_11",
+    "text": "Dadaji, aap kya lenge dinner mein?",
+    "addressed_to_me": true,
+    "is_question": true,
+    "vocative": "Dadaji",
+    "context": "direct_hindi_question"
+  },
+  {
+    "id": "utt_12",
+    "text": "The doctor advised Dadaji to reduce salt intake in the diet.",
+    "addressed_to_me": false,
+    "is_question": false,
+    "vocative": "Dadaji",
+    "context": "third_person_medical_fact"
+  },
+  {
+    "id": "utt_13",
+    "text": "Dadaji! Can you hear me clearly from across the table?",
+    "addressed_to_me": true,
+    "is_question": true,
+    "vocative": "Dadaji",
+    "context": "direct_volume_check"
+  },
+  {
+    "id": "utt_14",
+    "text": "Sunita, did you give Dadaji his Telmisartan tablet?",
+    "addressed_to_me": false,
+    "is_question": true,
+    "vocative": "Dadaji",
+    "context": "question_to_other_about_dadaji"
+  },
+  {
+    "id": "utt_15",
+    "text": "Dada, shall we watch the news bulletin now?",
+    "addressed_to_me": true,
+    "is_question": true,
+    "vocative": "Dada",
+    "context": "nickname_direct_question"
+  },
+  {
+    "id": "utt_16",
+    "text": "Did you take your afternoon rest, Ramesh?",
+    "addressed_to_me": true,
+    "is_question": true,
+    "vocative": "Ramesh",
+    "context": "first_name_direct_question"
+  },
+  {
+    "id": "utt_17",
+    "text": "We bought these comfortable walking shoes for Dadaji's morning stroll.",
+    "addressed_to_me": false,
+    "is_question": false,
+    "vocative": "Dadaji",
+    "context": "third_person_gift_mention"
+  },
+  {
+    "id": "utt_18",
+    "text": "Suno Dadaji, Priya's train is arriving at 8:30 PM.",
+    "addressed_to_me": true,
+    "is_question": false,
+    "vocative": "Dadaji",
+    "context": "direct_attention_grabber"
+  },
+  {
+    "id": "utt_19",
+    "text": "Why is the TV volume so high in the living room?",
+    "addressed_to_me": false,
+    "is_question": true,
+    "vocative": "None",
+    "context": "general_household_question"
+  },
+  {
+    "id": "utt_20",
+    "text": "Dadaji, would you like another warm roti with ghee?",
+    "addressed_to_me": true,
+    "is_question": true,
+    "vocative": "Dadaji",
+    "context": "direct_dining_question"
+  },
+  {
+    "id": "utt_21",
+    "text": "Ramesh likes his tea with very little sugar.",
+    "addressed_to_me": false,
+    "is_question": false,
+    "vocative": "Ramesh",
+    "context": "third_person_preference"
+  },
+  {
+    "id": "utt_22",
+    "text": "Please ask Dadaji if he wants to sit near the window.",
+    "addressed_to_me": false,
+    "is_question": false,
+    "vocative": "Dadaji",
+    "context": "instruction_to_ask_dadaji"
+  },
+  {
+    "id": "utt_23",
+    "text": "Dadaji, aapko pain toh nahin ho raha knee mein?",
+    "addressed_to_me": true,
+    "is_question": true,
+    "vocative": "Dadaji",
+    "context": "health_check_question"
+  },
+  {
+    "id": "utt_24",
+    "text": "The pharmacy delivered Dadaji's strip of Atorvastatin this afternoon.",
+    "addressed_to_me": false,
+    "is_question": false,
+    "vocative": "Dadaji",
+    "context": "third_person_delivery"
+  },
+  {
+    "id": "utt_25",
+    "text": "Uncle, do you need help setting up the tablet stand?",
+    "addressed_to_me": true,
+    "is_question": true,
+    "vocative": "Uncle",
+    "context": "direct_assistance_offer"
+  },
+  {
+    "id": "utt_26",
+    "text": "Aarav showed Dadaji his school science drawing book.",
+    "addressed_to_me": false,
+    "is_question": false,
+    "vocative": "Dadaji",
+    "context": "family_story"
+  },
+  {
+    "id": "utt_27",
+    "text": "Dadaji, please take your seat, dinner is hot and ready.",
+    "addressed_to_me": true,
+    "is_question": false,
+    "vocative": "Dadaji",
+    "context": "polite_invitation"
+  },
+  {
+    "id": "utt_28",
+    "text": "Who left the car keys on the kitchen counter?",
+    "addressed_to_me": false,
+    "is_question": true,
+    "vocative": "None",
+    "context": "general_household_question"
+  },
+  {
+    "id": "utt_29",
+    "text": "Rameshji, how did you find today's doctor consultation?",
+    "addressed_to_me": true,
+    "is_question": true,
+    "vocative": "Rameshji",
+    "context": "direct_feedback_question"
+  },
+  {
+    "id": "utt_30",
+    "text": "Dadaji slept soundly through the afternoon breeze.",
+    "addressed_to_me": false,
+    "is_question": false,
+    "vocative": "Dadaji",
+    "context": "third_person_status"
+  },
+  {
+    "id": "utt_31",
+    "text": "Dadaji, aapne water bottle li hai room ke liye?",
+    "addressed_to_me": true,
+    "is_question": true,
+    "vocative": "Dadaji",
+    "context": "nighttime_check"
+  },
+  {
+    "id": "utt_32",
+    "text": "Tell Rohan that Dadaji's spectacles are on the bedside table.",
+    "addressed_to_me": false,
+    "is_question": false,
+    "vocative": "Dadaji",
+    "context": "locating_item"
+  },
+  {
+    "id": "utt_33",
+    "text": "Listen Dada, we booked the train tickets for Diwali.",
+    "addressed_to_me": true,
+    "is_question": false,
+    "vocative": "Dada",
+    "context": "holiday_announcement"
+  },
+  {
+    "id": "utt_34",
+    "text": "Did Dadaji finish the bowl of vegetable soup?",
+    "addressed_to_me": false,
+    "is_question": true,
+    "vocative": "Dadaji",
+    "context": "question_to_other_about_dadaji"
+  },
+  {
+    "id": "utt_35",
+    "text": "Dadaji, which sweet do you prefer: kheer or halwa?",
+    "addressed_to_me": true,
+    "is_question": true,
+    "vocative": "Dadaji",
+    "context": "dessert_choice"
+  },
+  {
+    "id": "utt_36",
+    "text": "Sunita cooked this mild paneer subzi especially for Dadaji.",
+    "addressed_to_me": false,
+    "is_question": false,
+    "vocative": "Dadaji",
+    "context": "family_compliment"
+  },
+  {
+    "id": "utt_37",
+    "text": "Uncle, are you planning to join us for the garden walk?",
+    "addressed_to_me": true,
+    "is_question": true,
+    "vocative": "Uncle",
+    "context": "walk_invitation"
+  },
+  {
+    "id": "utt_38",
+    "text": "What time does the grocery market close tonight?",
+    "addressed_to_me": false,
+    "is_question": true,
+    "vocative": "None",
+    "context": "general_errand_question"
+  },
+  {
+    "id": "utt_39",
+    "text": "Dadaji, Dr. Verma sent your updated fasting blood sugar report.",
+    "addressed_to_me": true,
+    "is_question": false,
+    "vocative": "Dadaji",
+    "context": "report_update"
+  },
+  {
+    "id": "utt_40",
+    "text": "Rohan asked Dadaji about his ancestral village memories.",
+    "addressed_to_me": false,
+    "is_question": false,
+    "vocative": "Dadaji",
+    "context": "storytelling_mention"
+  },
+  {
+    "id": "utt_41",
+    "text": "Dadaji, aapne subah wali BP ki goli khayi thi?",
+    "addressed_to_me": true,
+    "is_question": true,
+    "vocative": "Dadaji",
+    "context": "blood_pressure_check"
+  },
+  {
+    "id": "utt_42",
+    "text": "Pass the salt shaker to this side of the table please.",
+    "addressed_to_me": false,
+    "is_question": false,
+    "vocative": "None",
+    "context": "dining_request"
+  },
+  {
+    "id": "utt_43",
+    "text": "Ramesh, should we schedule the ophthalmologist eye check next week?",
+    "addressed_to_me": true,
+    "is_question": true,
+    "vocative": "Ramesh",
+    "context": "medical_planning_question"
+  },
+  {
+    "id": "utt_44",
+    "text": "Dadaji was smiling seeing Aarav's funny mimicry.",
+    "addressed_to_me": false,
+    "is_question": false,
+    "vocative": "Dadaji",
+    "context": "family_moment"
+  },
+  {
+    "id": "utt_45",
+    "text": "Dadaji, can I bring you another warm blanket?",
+    "addressed_to_me": true,
+    "is_question": true,
+    "vocative": "Dadaji",
+    "context": "comfort_offer"
+  },
+  {
+    "id": "utt_46",
+    "text": "Is anyone planning to have dessert after dinner?",
+    "addressed_to_me": false,
+    "is_question": true,
+    "vocative": "None",
+    "context": "general_table_question"
+  },
+  {
+    "id": "utt_47",
+    "text": "Dekho Dadaji, the rain has finally stopped outside.",
+    "addressed_to_me": true,
+    "is_question": false,
+    "vocative": "Dadaji",
+    "context": "weather_observation"
+  },
+  {
+    "id": "utt_48",
+    "text": "Priya reminded Rohan to drive carefully in the evening traffic.",
+    "addressed_to_me": false,
+    "is_question": false,
+    "vocative": "None",
+    "context": "third_party_banter"
+  },
+  {
+    "id": "utt_49",
+    "text": "Dadaji, did you like the dal makhani today?",
+    "addressed_to_me": true,
+    "is_question": true,
+    "vocative": "Dadaji",
+    "context": "recipe_feedback"
+  },
+  {
+    "id": "utt_50",
+    "text": "We are planning to visit the botanical garden with Dadaji on Sunday.",
+    "addressed_to_me": false,
+    "is_question": false,
+    "vocative": "Dadaji",
+    "context": "future_family_plan"
+  }
+]

@@ -1,0 +1,146 @@
+[
+  {
+    "id": "clip_01",
+    "file": "clip_01.wav",
+    "ground_truth": "Dadaji, did you take your Metformin today with warm water?",
+    "speaker": "Priya",
+    "category": "medication_direct",
+    "duration_sec": 4.42,
+    "noisy": false
+  },
+  {
+    "id": "clip_02",
+    "file": "clip_02.wav",
+    "ground_truth": "Priya is coming for dinner, shall we prepare dal makhani?",
+    "speaker": "Rohan",
+    "category": "dinner_plan",
+    "duration_sec": 4.51,
+    "noisy": false
+  },
+  {
+    "id": "clip_03",
+    "file": "clip_03.wav",
+    "ground_truth": "Rohan, please pass the roti and fresh paneer to Dadaji.",
+    "speaker": "Sunita",
+    "category": "dining_table",
+    "duration_sec": 4.52,
+    "noisy": false
+  },
+  {
+    "id": "clip_04",
+    "file": "clip_04.wav",
+    "ground_truth": "Doctor Verma told us to check blood pressure tomorrow morning.",
+    "speaker": "Priya",
+    "category": "doctor_update",
+    "duration_sec": 4.17,
+    "noisy": false
+  },
+  {
+    "id": "clip_05",
+    "file": "clip_05.wav",
+    "ground_truth": "Sunita, is the evening tea ready or should we make it later?",
+    "speaker": "Rohan",
+    "category": "tea_time",
+    "duration_sec": 4.26,
+    "noisy": false
+  },
+  {
+    "id": "clip_06",
+    "file": "clip_06.wav",
+    "ground_truth": "Dadaji went for a peaceful morning walk in the park with Aarav.",
+    "speaker": "Sunita",
+    "category": "third_person_narration",
+    "duration_sec": 4.2,
+    "noisy": false
+  },
+  {
+    "id": "clip_07",
+    "file": "clip_07.wav",
+    "ground_truth": "Beta, please finish your bowl of khichdi quickly.",
+    "speaker": "Priya",
+    "category": "child_address",
+    "duration_sec": 3.67,
+    "noisy": false
+  },
+  {
+    "id": "clip_08",
+    "file": "clip_08.wav",
+    "ground_truth": "Listen Dadaji, we are going to Apollo Clinic on Thursday morning.",
+    "speaker": "Rohan",
+    "category": "clinic_reminder",
+    "duration_sec": 4.84,
+    "noisy": false
+  },
+  {
+    "id": "clip_09",
+    "file": "clip_09.wav",
+    "ground_truth": "Dadi was saying that the sweet kheer is very delicious tonight.",
+    "speaker": "Aarav",
+    "category": "third_person_family",
+    "duration_sec": 4.02,
+    "noisy": false
+  },
+  {
+    "id": "clip_10",
+    "file": "clip_10.wav",
+    "ground_truth": "Are you feeling cold Dadaji? Should I turn down the air conditioner?",
+    "speaker": "Priya",
+    "category": "comfort_check",
+    "duration_sec": 5.23,
+    "noisy": false
+  },
+  {
+    "id": "clip_11",
+    "file": "clip_11.wav",
+    "ground_truth": "Could you please pass the water jug across the table?",
+    "speaker": "Rohan",
+    "category": "table_request",
+    "duration_sec": 3.51,
+    "noisy": false
+  },
+  {
+    "id": "clip_12",
+    "file": "clip_12.wav",
+    "ground_truth": "Telmisartan tablet is kept on the dining table near your spectacles.",
+    "speaker": "Sunita",
+    "category": "medicine_location",
+    "duration_sec": 4.54,
+    "noisy": false
+  },
+  {
+    "id": "clip_13",
+    "file": "clip_13.wav",
+    "ground_truth": "Yes Dadaji, we can watch the evening cricket match together after dinner.",
+    "speaker": "Rohan",
+    "category": "direct_agree",
+    "duration_sec": 5.07,
+    "noisy": false
+  },
+  {
+    "id": "clip_14",
+    "file": "clip_14.wav",
+    "ground_truth": "Rameshji, please drink some water before taking Atorvastatin.",
+    "speaker": "Sunita",
+    "category": "direct_medicine",
+    "duration_sec": 4.87,
+    "noisy": false
+  },
+  {
+    "id": "clip_15",
+    "file": "clip_15.wav",
+    "ground_truth": "Please pass the dal makhani and hot rotis across the table.",
+    "speaker": "Priya",
+    "category": "noisy_dinner_mix",
+    "duration_sec": 4.26,
+    "noisy": true
+  },
+  {
+    "id": "clip_16",
+    "file": "clip_16.wav",
+    "ground_truth": "Doctor noted age-related presbycusis and recommended continuing daily routine.",
+    "speaker": "Priya",
+    "category": "doctor_visit_summary",
+    "duration_sec": 5.44,
+    "noisy": false
+  }
+]

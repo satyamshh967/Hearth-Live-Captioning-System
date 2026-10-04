@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  hearth:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: hearth:latest
+    container_name: hearth-assistive
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - HEARTH_PROFILE=balanced
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - hearth-data:/app/services/core/data
+    # Optional GPU reservation if running on host with NVIDIA Container Toolkit
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+volumes:
+  hearth-data:
+    name: hearth-sqlite-data
