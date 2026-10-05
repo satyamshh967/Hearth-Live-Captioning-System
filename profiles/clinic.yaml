@@ -1,0 +1,27 @@
+id: clinic
+name: Medical / Clinic Visit
+description: Doctor consultations, prescription dosages, vitals and diagnoses.
+vocabulary:
+- Blood pressure
+- Hypertension
+- Presbycusis
+- Hearing loss
+- Edema
+- Prescription
+- Metformin
+- Atorvastatin
+- Dosage
+- Milligrams
+- Cardiologist
+protected_terms:
+- Metformin
+- Atorvastatin
+- Telmisartan
+- mg
+- BP
+vocative_triggers:
+- doctor
+- nurse
+- patient
+preferred_source_lang: en
+preferred_target_lang: es

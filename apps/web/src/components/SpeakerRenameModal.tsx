@@ -57,7 +57,7 @@ export const SpeakerRenameModal: React.FC<SpeakerRenameModalProps> = ({
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Priya, Rohan, Dadaji"
+              placeholder="e.g. Alex, Maria, Speaker 1"
               className="w-full p-3 rounded-xl bg-slate-800 border-2 border-indigo-500/60 focus:border-indigo-400 text-white text-base font-bold outline-none"
               autoFocus
             />

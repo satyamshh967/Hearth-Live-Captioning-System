@@ -1,0 +1,38 @@
+[
+  {
+    "clip": "clip_01 (4.4s sentence)",
+    "duration_sec": 4.423625,
+    "first_partial_delay_ms": 2346.604108810425,
+    "vad_wait_ms": -3785.407781600952,
+    "asr_inference_ms": 9742.500066757202,
+    "diarization_ms": 1.9998550415039062,
+    "post_processing_ms": 0.6000995635986328,
+    "delay_from_speech_end_ms": 5960.764169692993,
+    "total_from_speech_start_ms": 10822.749137878418,
+    "rtf": 2.202379285485818
+  },
+  {
+    "clip": "clip_03 (4.5s sentence)",
+    "duration_sec": 4.5186875,
+    "first_partial_delay_ms": null,
+    "vad_wait_ms": -652.0740985870361,
+    "asr_inference_ms": 12309.399843215942,
+    "diarization_ms": 2.000093460083008,
+    "post_processing_ms": 0.9999275207519531,
+    "delay_from_speech_end_ms": 11661.309480667114,
+    "total_from_speech_start_ms": 16660.465002059937,
+    "rtf": 2.7241095657125975
+  },
+  {
+    "clip": "clip_08 (4.8s sentence)",
+    "duration_sec": 4.843625,
+    "first_partial_delay_ms": null,
+    "vad_wait_ms": -3916.0706996917725,
+    "asr_inference_ms": 5989.200115203857,
+    "diarization_ms": 0.9999275207519531,
+    "post_processing_ms": 0.0,
+    "delay_from_speech_end_ms": 2075.697898864746,
+    "total_from_speech_start_ms": 7396.321058273315,
+    "rtf": 1.2365119337694097
+  }
+]

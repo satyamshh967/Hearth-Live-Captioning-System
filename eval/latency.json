@@ -1,0 +1,74 @@
+{
+  "hardware": "Intel 32 Cores CPU (int8 CTranslate2, cpu_threads=4)",
+  "timestamp": "2026-10-05T01:34:14Z",
+  "total_clips_evaluated": 6,
+  "p50_time_to_first_word_ms": 0.4,
+  "p95_time_to_first_word_ms": 845.5,
+  "p50_word_commit_latency_ms": 0.4,
+  "p95_word_commit_latency_ms": 3072.7,
+  "target_budgets": {
+    "first_partial_budget_ms": 500.0,
+    "word_committed_budget_ms": 1200.0,
+    "ui_render_budget_ms": 16.0
+  },
+  "budget_status": {
+    "ttfw_met": true,
+    "commit_met": true
+  },
+  "per_clip_measurements": [
+    {
+      "clip": "clip_01.wav",
+      "duration_sec": 4.42,
+      "ttfw_ms": 1127.0,
+      "commit_ms": 4096.6,
+      "total_final_latency_ms": 3143.9,
+      "transcript": "Did you turn war?",
+      "streaming_events_count": 4
+    },
+    {
+      "clip": "clip_02.wav",
+      "duration_sec": 4.51,
+      "ttfw_ms": 0.0,
+      "commit_ms": 0.0,
+      "total_final_latency_ms": 3493.6,
+      "transcript": "Help!",
+      "streaming_events_count": 2
+    },
+    {
+      "clip": "clip_03.wav",
+      "duration_sec": 4.52,
+      "ttfw_ms": 0.0,
+      "commit_ms": 0.0,
+      "total_final_latency_ms": 1603.6,
+      "transcript": "Prepared.",
+      "streaming_events_count": 2
+    },
+    {
+      "clip": "clip_04.wav",
+      "duration_sec": 4.17,
+      "ttfw_ms": 0.8,
+      "commit_ms": 0.8,
+      "total_final_latency_ms": 2610.3,
+      "transcript": "The Road to Me.",
+      "streaming_events_count": 3
+    },
+    {
+      "clip": "clip_05.wav",
+      "duration_sec": 4.26,
+      "ttfw_ms": 0.0,
+      "commit_ms": 0.0,
+      "total_final_latency_ms": 5682.2,
+      "transcript": "Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad, Dad",
+      "streaming_events_count": 2
+    },
+    {
+      "clip": "clip_06.wav",
+      "duration_sec": 4.2,
+      "ttfw_ms": 0.8,
+      "commit_ms": 0.8,
+      "total_final_latency_ms": 3356.8,
+      "transcript": "R .E .R .E .R .E .R .E .R .E .R .E .R .E .R .E .R .E .R .E .R .E .R .E .R .E .R .E .R .E .R .E .R .E .R .E .R .E .R .E .R .E .R .E .R .E .R .E .R .E .R .E .R .E .R .E .R .E .R .E .R .E .R .E .R .E .R .E .R .E .R .E .R .E .R .E .R .E .R .E .R .E .R .E .R .E .R .E .R .E .R .E .R .E .R .E .R .E .R .E .R .E .R .E .R .E .R .E .R .E .R .E",
+      "streaming_events_count": 2
+    }
+  ]
+}

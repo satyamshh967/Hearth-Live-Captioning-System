@@ -6,6 +6,8 @@ import {
   Circle,
   X,
   FileText,
+  Subtitles,
+  Download,
 } from 'lucide-react';
 import { fetchSessions, fetchSession, toggleMemoryConfirmed } from '../services/api';
 
@@ -131,22 +133,42 @@ export const SessionHistoryModal: React.FC<SessionHistoryModalProps> = ({
                       Recorded on {new Date(selectedSession.created_at).toLocaleString()}
                     </span>
                   </div>
-                  <div className="flex space-x-2">
+                  <div className="flex flex-wrap items-center gap-1.5">
                     <a
                       href={`/api/sessions/${selectedSession.session_id}/export/markdown`}
-                      download={`${selectedSession.session_id}.md`}
-                      className="flex items-center space-x-1 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition"
+                      download={`hearth_${selectedSession.session_id}.md`}
+                      className="flex items-center space-x-1 px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition"
+                      title="Download Markdown Transcript"
                     >
                       <FileText className="w-3.5 h-3.5 text-amber-400" />
-                      <span>Markdown</span>
+                      <span>MD</span>
+                    </a>
+                    <a
+                      href={`/api/sessions/${selectedSession.session_id}/export/srt`}
+                      download={`hearth_${selectedSession.session_id}.srt`}
+                      className="flex items-center space-x-1 px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition"
+                      title="Download SubRip Subtitles (.SRT) with source and translations"
+                    >
+                      <Subtitles className="w-3.5 h-3.5 text-cyan-400" />
+                      <span>SRT</span>
+                    </a>
+                    <a
+                      href={`/api/sessions/${selectedSession.session_id}/export/vtt`}
+                      download={`hearth_${selectedSession.session_id}.vtt`}
+                      className="flex items-center space-x-1 px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition"
+                      title="Download WebVTT Captions (.VTT)"
+                    >
+                      <Download className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>VTT</span>
                     </a>
                     <a
                       href={`/api/sessions/${selectedSession.session_id}/export/ics`}
-                      download={`${selectedSession.session_id}.ics`}
-                      className="flex items-center space-x-1 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition"
+                      download={`hearth_${selectedSession.session_id}.ics`}
+                      className="flex items-center space-x-1 px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition"
+                      title="Add extracted reminders to Calendar (.ICS)"
                     >
                       <Calendar className="w-3.5 h-3.5 text-indigo-400" />
-                      <span>Add to Calendar (.ICS)</span>
+                      <span>ICS</span>
                     </a>
                   </div>
                 </div>
@@ -200,9 +222,26 @@ export const SessionHistoryModal: React.FC<SessionHistoryModalProps> = ({
                   <div className="space-y-2 max-h-60 overflow-y-auto">
                     {selectedSession.utterances && selectedSession.utterances.length > 0 ? (
                       selectedSession.utterances.map((u: any, idx: number) => (
-                        <div key={idx} className="p-2.5 rounded-xl bg-slate-850 text-sm">
-                          <strong className="text-amber-400 font-semibold">{u.speaker}:</strong>{' '}
-                          <span className="text-slate-200">{u.text}</span>
+                        <div key={idx} className="p-2.5 rounded-xl bg-slate-850 text-sm border border-slate-800">
+                          <div className="flex items-center justify-between text-xs mb-0.5">
+                            <strong className="text-amber-400 font-semibold">{u.speaker}</strong>
+                            {u.start_sec !== undefined && (
+                              <span className="text-[11px] font-mono text-slate-500">
+                                {Number(u.start_sec).toFixed(1)}s - {u.end_sec ? Number(u.end_sec).toFixed(1) : ''}s
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-slate-200">{u.text}</div>
+                          {u.translation && (
+                            <div className="text-cyan-400 text-xs mt-1 border-l-2 border-cyan-500/40 pl-2 italic">
+                              {u.translation}
+                            </div>
+                          )}
+                          {u.plain_text && (
+                            <div className="text-indigo-400 text-xs mt-1 border-l-2 border-indigo-500/40 pl-2">
+                              Simple: {u.plain_text}
+                            </div>
+                          )}
                         </div>
                       ))
                     ) : (

@@ -47,8 +47,8 @@ class OpenAILocalLLMProvider(LLMProvider):
     async def check_addressed_to_me(self, text: str, user_names: List[str]) -> AddressedAlert:
         prompt_sys = (
             "You are an intent classifier for Hearth assistive captioning. "
-            f"Detect if the speaker is directly talking TO Ramesh (known as {', '.join(user_names)}) "
-            "or talking ABOUT him to someone else in third person. "
+            f"Detect if the speaker is directly talking TO the user (addressed by any of these names/vocatives: {', '.join(user_names)}) "
+            "or talking ABOUT them to someone else in third person. "
             "Output JSON: {\"addressed_to_user\": bool, \"confidence\": float, \"user_vocative_used\": str, \"urgency\": \"low\"|\"medium\"|\"high\", \"reasoning\": str}"
         )
         res = await self._call_chat_completion(prompt_sys, text)
@@ -61,7 +61,7 @@ class OpenAILocalLLMProvider(LLMProvider):
 
     async def detect_question_and_replies(self, text: str, friend_name: str, tone_profile: str) -> QuestionReplies:
         prompt_sys = (
-            f"You are an assistive dialog assistant for {friend_name} whose tone is {tone_profile}. "
+            f"You are an assistive dialog assistant for {friend_name or 'the user'} whose tone is {tone_profile}. "
             "If the input is a question or requires a response, output JSON with 3 quick natural replies: "
             "{\"is_question\": bool, \"replies\": [{\"label\": str, \"text\": str}]}"
         )
@@ -75,7 +75,7 @@ class OpenAILocalLLMProvider(LLMProvider):
 
     async def generate_catchup_recap(self, transcript_lines: List[Dict]) -> CatchupRecap:
         prompt_sys = (
-            "You are an assistive summarizer for Ramesh (Dadaji). "
+            "You are an assistive conversational summarizer. "
             "Given the transcript lines, provide a clear 2-sentence conversational recap highlighting speakers and decisions. "
             "Output JSON: {\"recap\": str, \"key_topic\": str, \"speakers_involved\": [str]}"
         )
@@ -90,8 +90,8 @@ class OpenAILocalLLMProvider(LLMProvider):
 
     async def simplify_plain_language(self, text: str) -> PlainLanguageResult:
         prompt_sys = (
-            "You are an assistive accessibility translator for Dadaji during a doctor visit. "
-            "Translate medical terminology into simple, reassuring everyday language without losing dosage/timing details. "
+            "You are an assistive accessibility plain-language translator. "
+            "Translate technical or medical terminology into simple, reassuring everyday language without losing dosage/timing details. "
             "Output JSON: {\"original_text\": str, \"plain_text\": str, \"key_terms_explained\": [{\"term\": str, \"simple_meaning\": str}]}"
         )
         res = await self._call_chat_completion(prompt_sys, text)

@@ -1,0 +1,27 @@
+id: work
+name: Workplace / Meeting
+description: Technical discussions, product syncs, engineering and office terminology.
+vocabulary:
+- Sprint
+- Standup
+- API
+- Frontend
+- Backend
+- Pull Request
+- Deployment
+- Kubernetes
+- Database
+- Latency
+- Architecture
+- Roadmap
+protected_terms:
+- API
+- Kubernetes
+- Hearth
+- WebSocket
+vocative_triggers:
+- hey
+- question
+- quick question
+preferred_source_lang: en
+preferred_target_lang: de

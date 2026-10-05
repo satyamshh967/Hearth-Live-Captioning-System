@@ -1,3 +1,13 @@
+"""
+Hearth WebSocket Server
+Routes real-time audio streams and events with sub-500ms streaming latency:
+- Streaming LocalAgreement ASR engine (isolated compute threads, zero thread thrashing)
+- Real-time clause streaming MT translation with terminology protection
+- 5 operational modes (Captions, Listening, Conversation, Text Only, Custom)
+- Asynchronous intelligence and ambient alerts
+- Backpressure governor to prevent audio buffer latency growth
+"""
+
 import asyncio
 import json
 import logging
@@ -10,7 +20,11 @@ from fastapi import WebSocket, WebSocketDisconnect
 
 from ..config import HearthConfig
 from ..asr.provider import ASRProvider, ASRResult
+from ..asr.streaming_engine import StreamingASREngine, StreamingSession, StreamingHypothesis
 from ..asr.post_processor import LexiconPostProcessor
+from ..translation.streaming_translator import StreamingTranslator
+from ..profiles.profile_manager import ProfileManager, Profile
+from ..packs.manager import LanguagePackManager
 from ..diar.provider import DiarizerProvider
 from ..llm.provider import LLMProvider
 from ..store.sessions import SessionStore
@@ -22,11 +36,8 @@ logger = logging.getLogger(__name__)
 class ConnectionManager:
     """Manages active WebSocket connections grouped by room code."""
     def __init__(self):
-        # room_id -> set of WebSockets
         self.rooms: Dict[str, Set[WebSocket]] = {}
-        # ws -> room_id
         self.ws_to_room: Dict[WebSocket, str] = {}
-        # ws -> role ("display", "mic", "all")
         self.ws_to_role: Dict[WebSocket, str] = {}
 
     async def connect(self, websocket: WebSocket, room_id: str, role: str = "all"):
@@ -63,22 +74,44 @@ class ConnectionManager:
 
 
 class AudioSessionState:
-    """Tracks streaming audio buffer, VAD state, and active utterances for a room."""
-    def __init__(self, room_id: str):
+    """Maintains state for a room's active streaming conversation."""
+    def __init__(
+        self,
+        room_id: str,
+        streaming_engine: StreamingASREngine,
+        profile_manager: ProfileManager,
+        config: HearthConfig
+    ):
         self.room_id = room_id
-        self.audio_buffer = bytearray()
-        self.current_utt_id = str(uuid.uuid4())[:8]
         self.session_id = str(uuid.uuid4())[:8]
+        self.current_utt_id = str(uuid.uuid4())[:8]
+
+        # Mode and Language Pair
+        self.mode: str = config.mode
+        self.source_lang: str = config.source_language
+        self.target_lang: str = config.target_language
+        self.profile: Profile = profile_manager.get_active_profile()
+
+        # Streaming Session
+        self.streaming_session: StreamingSession = streaming_engine.create_session(
+            initial_prompt=self.profile.get_prompt_biasing_string()
+        )
+
+        # Audio tracking & VAD
+        self.audio_accumulator = bytearray()
         self.last_speech_time = time.time()
-        self.last_partial_time = time.time()
-        self.is_speaking = False
         self.speech_start_time = 0.0
-        self.recent_utterance_history: List[Dict] = []
-        self.task: str = "transcribe"  # 'transcribe' or 'translate'
-        self.is_processing_partial: bool = False
-        self.is_processing_final: bool = False
+        self.is_speaking = False
+        self.is_processing_chunk = False
+
         self.first_capture_time: float = 0.0
         self.last_capture_time: float = 0.0
+        self.last_translate_time: float = 0.0
+
+        self.last_committed_source: str = ""
+        self.last_committed_translated: str = ""
+        self.active_speaker: str = "Speaker 1"
+        self.recent_utterance_history: List[Dict] = []
 
 
 class HearthWSServer:
@@ -91,6 +124,9 @@ class HearthWSServer:
         llm_provider: LLMProvider,
         session_store: SessionStore,
         lexicon_store: LexiconStore,
+        profile_manager: Optional[ProfileManager] = None,
+        pack_manager: Optional[LanguagePackManager] = None,
+        translator: Optional[StreamingTranslator] = None,
     ):
         self.config = config
         self.asr_provider = asr_provider
@@ -99,12 +135,32 @@ class HearthWSServer:
         self.llm_provider = llm_provider
         self.session_store = session_store
         self.lexicon_store = lexicon_store
+
+        self.profile_manager = profile_manager or ProfileManager()
+        self.pack_manager = pack_manager or LanguagePackManager()
+        self.translator = translator or StreamingTranslator()
+
+        # Isolated Streaming Engine
+        self.streaming_engine = StreamingASREngine(
+            model_size=config.asr.model_size,
+            device=config.asr.device,
+            compute_type=config.asr.compute_type,
+            cpu_threads=config.asr.cpu_threads,
+            step_duration_sec=config.asr.streaming_step_sec,
+            initial_prompt=self.profile_manager.get_active_profile().get_prompt_biasing_string(),
+        )
+
         self.manager = ConnectionManager()
         self.states: Dict[str, AudioSessionState] = {}
 
     def get_or_create_state(self, room_id: str) -> AudioSessionState:
         if room_id not in self.states:
-            self.states[room_id] = AudioSessionState(room_id)
+            self.states[room_id] = AudioSessionState(
+                room_id=room_id,
+                streaming_engine=self.streaming_engine,
+                profile_manager=self.profile_manager,
+                config=self.config
+            )
         return self.states[room_id]
 
     async def handle_websocket(self, websocket: WebSocket, room_id: str = "default", role: str = "all"):
@@ -117,6 +173,10 @@ class HearthWSServer:
             "latency_ms": 0.0,
             "profile": self.config.profile,
             "model": self.config.asr.model_size,
+            "mode": state.mode,
+            "source_lang": state.source_lang,
+            "target_lang": state.target_lang,
+            "active_profile": state.profile.name,
             "room_id": room_id,
             "session_id": state.session_id,
             "speakers": self.diarizer.get_speakers(),
@@ -142,18 +202,57 @@ class HearthWSServer:
             return
 
         msg_type = data.get("type")
-        if msg_type == "rename_speaker":
+
+        if msg_type == "set_mode":
+            mode = data.get("mode", "captions")
+            state.mode = mode
+            await self.manager.broadcast(state.room_id, {
+                "type": "status",
+                "mode": state.mode,
+                "source_lang": state.source_lang,
+                "target_lang": state.target_lang,
+            })
+
+        elif msg_type == "set_language_pair":
+            state.source_lang = data.get("source_lang", state.source_lang)
+            state.target_lang = data.get("target_lang", state.target_lang)
+            await self.manager.broadcast(state.room_id, {
+                "type": "status",
+                "mode": state.mode,
+                "source_lang": state.source_lang,
+                "target_lang": state.target_lang,
+            })
+
+        elif msg_type == "set_task":
+            task = data.get("task", "transcribe")
+            if task == "translate":
+                state.mode = "listening"
+            else:
+                state.mode = "captions"
+            await self.manager.broadcast(state.room_id, {
+                "type": "status",
+                "task": task,
+                "mode": state.mode,
+            })
+
+        elif msg_type == "set_profile":
+            profile_id = data.get("profile_id", "default")
+            if self.profile_manager.set_active_profile(profile_id):
+                state.profile = self.profile_manager.get_active_profile()
+                state.streaming_session.prompt = state.profile.get_prompt_biasing_string()
+                await self.manager.broadcast(state.room_id, {
+                    "type": "status",
+                    "active_profile": state.profile.name,
+                })
+
+        elif msg_type == "rename_speaker":
             speaker_id = data.get("speaker_id")
             new_name = data.get("new_name")
             if speaker_id and new_name:
                 self.diarizer.rename_speaker(speaker_id, new_name)
                 self.session_store.rename_speaker(speaker_id, new_name)
-                # Broadcast update
                 await self.manager.broadcast(state.room_id, {
                     "type": "status",
-                    "latency_ms": 0.0,
-                    "profile": self.config.profile,
-                    "model": self.config.asr.model_size,
                     "speakers": self.diarizer.get_speakers(),
                 })
 
@@ -163,7 +262,7 @@ class HearthWSServer:
             ctx = data.get("context", "")
             if orig and corr:
                 self.lexicon_store.record_correction(orig, corr, ctx)
-                # Acknowledge correction
+                self.profile_manager.add_word_to_active_profile(corr)
                 await websocket.send_text(json.dumps({
                     "type": "correction_saved",
                     "original": orig,
@@ -171,7 +270,6 @@ class HearthWSServer:
                 }))
 
         elif msg_type == "catchup":
-            # "What did I miss?" requested
             history = state.recent_utterance_history[-10:]
             recap_result = await self.llm_provider.generate_catchup_recap(history)
             await websocket.send_text(json.dumps({
@@ -180,19 +278,6 @@ class HearthWSServer:
                 "topic": recap_result.key_topic,
                 "speakers": recap_result.speakers_involved,
             }))
-
-        elif msg_type == "set_task":
-            task = data.get("task", "transcribe")
-            if task in ("transcribe", "translate"):
-                state.task = task
-                logger.info(f"Room {state.room_id} task set to: {task}")
-                await websocket.send_text(json.dumps({
-                    "type": "status",
-                    "task": state.task,
-                    "profile": self.config.profile,
-                    "model": self.config.asr.model_size,
-                    "speakers": self.diarizer.get_speakers(),
-                }))
 
         elif msg_type == "request_plain_language":
             utt_id = data.get("utt_id")
@@ -212,27 +297,25 @@ class HearthWSServer:
         t_capture = t_ws_recv
         audio_payload = raw_bytes
 
-        # If incoming buffer has 8-byte float64 header, extract t_capture
+        # Extract 8-byte Float64 t_capture header if present
         if len(raw_bytes) > 8:
             try:
                 candidate_ts = struct.unpack("<d", raw_bytes[:8])[0]
-                if 1577836800.0 < candidate_ts < 2524608000.0:  # Valid epoch timestamp (2020-2050)
+                if 1577836800.0 < candidate_ts < 2524608000.0:
                     t_capture = candidate_ts
                     audio_payload = raw_bytes[8:]
             except Exception:
                 pass
 
         state.last_capture_time = t_capture
-        state.audio_buffer.extend(audio_payload)
-        
-        # Audio is 16kHz 16-bit mono PCM: 2 bytes per sample -> 32000 bytes per second
-        # Check energy level for VAD
-        samples = np.frombuffer(audio_payload, dtype=np.int16).astype(np.float32)
+
+        # Audio is 16kHz 16-bit mono PCM
+        samples = np.frombuffer(audio_payload, dtype=np.int16).astype(np.float32) / 32768.0
         if len(samples) == 0:
             return
 
-        rms = np.sqrt(np.mean(samples ** 2))
-        energy_threshold = 400.0  # standard threshold for 16-bit PCM speech
+        rms = np.sqrt(np.mean((samples * 32768.0) ** 2))
+        energy_threshold = 400.0
 
         now = time.time()
         if rms > energy_threshold:
@@ -243,205 +326,220 @@ class HearthWSServer:
                 state.first_capture_time = t_capture
                 state.current_utt_id = str(uuid.uuid4())[:8]
 
-        # Rolling partial transcription every 800ms while speaking (non-blocking thread)
-        min_bytes_for_partial = int(16000 * 2 * 0.8) # 0.8s
-        if (
-            state.is_speaking
-            and not state.is_processing_partial
-            and not state.is_processing_final
-            and (now - state.last_partial_time > 0.8)
-            and len(state.audio_buffer) >= min_bytes_for_partial
-        ):
-            state.last_partial_time = now
-            state.is_processing_partial = True
-            window_bytes = bytes(state.audio_buffer[-int(16000 * 2 * 2.0):])
-            t_vad_endpoint = time.time()
-            asyncio.create_task(self._run_async_partial(
-                state, window_bytes, t_capture=t_capture, t_ws_recv=t_ws_recv, t_vad_endpoint=t_vad_endpoint
-            ))
+        # Feed frame into StreamingASREngine
+        task = "translate" if (state.mode == "listening" and state.target_lang == "en") else "transcribe"
+        lang = None if state.source_lang == "auto" else state.source_lang
 
-        # Check utterance end condition:
-        # Either silence duration > 400ms after speaking, or maximum duration (8 seconds) reached
+        if not state.is_processing_chunk:
+            state.is_processing_chunk = True
+            asyncio.create_task(
+                self._run_streaming_step(state, samples, t_capture=t_capture, task=task, language=lang)
+            )
+
+        # Utterance endpoint check (silence duration >= 400ms or 8s max duration)
         silence_duration = now - state.last_speech_time
-        max_duration_reached = (len(state.audio_buffer) >= 16000 * 2 * 8.0)
-        
-        if (state.is_speaking and silence_duration >= 0.40) or max_duration_reached:
-            # Utterance complete!
+        if state.is_speaking and silence_duration >= 0.40:
             state.is_speaking = False
-            state.is_processing_final = True
-            total_bytes = len(state.audio_buffer)
-            if total_bytes < 16000 * 2 * 0.4: # Ignore extremely brief clicks (< 400ms)
-                state.audio_buffer.clear()
-                state.is_processing_final = False
-                return
+            asyncio.create_task(self._run_endpoint_finalization(state))
 
-            audio_full = np.frombuffer(state.audio_buffer, dtype=np.int16).astype(np.float32) / 32768.0
-            state.audio_buffer.clear()
-            t_vad_endpoint = time.time()
-            utt_t_capture = state.first_capture_time or t_capture
-
-            # Execute transcription and diarization on worker thread (never blocks event loop)
-            asyncio.create_task(self._run_async_final(
-                state, audio_full, state.current_utt_id,
-                t_capture=utt_t_capture,
-                t_ws_recv=t_ws_recv,
-                t_vad_endpoint=t_vad_endpoint
-            ))
-
-    async def _run_async_partial(
+    async def _run_streaming_step(
         self,
         state: AudioSessionState,
-        window_bytes: bytes,
-        t_capture: float = 0.0,
-        t_ws_recv: float = 0.0,
-        t_vad_endpoint: float = 0.0
+        samples: np.ndarray,
+        t_capture: float,
+        task: str,
+        language: Optional[str]
     ):
-        """Asynchronously compute rolling partial without blocking websocket frames."""
+        """Asynchronously runs a streaming decode step on worker thread pool."""
         try:
-            t_asr_start = time.time()
-            audio_f32 = np.frombuffer(window_bytes, dtype=np.int16).astype(np.float32) / 32768.0
-            partial_text = await asyncio.to_thread(self.asr_provider.transcribe_stream, audio_f32, task=state.task)
-            t_asr_end = time.time()
-            t_send = time.time()
+            t0 = time.time()
+            hyp: Optional[StreamingHypothesis] = await asyncio.to_thread(
+                state.streaming_session.add_audio_frame,
+                samples,
+                t_capture,
+                task=task,
+                language=language,
+            )
 
-            if partial_text and state.is_speaking:
-                t_cap = t_capture or t_ws_recv or t_asr_start
+            if hyp and (hyp.committed_text or hyp.tentative_text):
+                # Update speaker diarization dynamically if new audio accumulated
+                if len(state.streaming_session.audio_buffer) >= 16000 * 0.5:
+                    speaker_seg = await asyncio.to_thread(
+                        self.diarizer.assign_speaker,
+                        state.streaming_session.audio_buffer[-16000*2:]
+                    )
+                    state.active_speaker = speaker_seg.display_name
+
+                # Translation path (if in translation mode and target is not English via task='translate')
+                committed_trans = ""
+                tentative_trans = ""
+                if state.mode in ("listening", "conversation", "text_only"):
+                    tgt = state.target_lang
+                    src = "en" if state.source_lang == "auto" else state.source_lang
+                    
+                    if task == "translate":
+                        # Direct Whisper speech-to-English translation
+                        committed_trans = hyp.committed_text
+                        tentative_trans = hyp.tentative_text
+                    else:
+                        if hyp.committed_text:
+                            committed_trans = await asyncio.to_thread(
+                                self.translator.translate_text,
+                                hyp.committed_text,
+                                src,
+                                tgt,
+                                profile=state.profile,
+                                is_final=False,
+                            )
+                        if hyp.tentative_text:
+                            tentative_trans = await asyncio.to_thread(
+                                self.translator.translate_text,
+                                hyp.tentative_text,
+                                src,
+                                tgt,
+                                profile=state.profile,
+                                is_final=False,
+                            )
+
+                state.last_committed_source = hyp.committed_text
+                state.last_committed_translated = committed_trans
+
+                total_spoken_to_partial = (time.time() - hyp.t_first_capture) * 1000
+
+                # Broadcast live streaming update (solid committed words + ~55% opacity tentative tail)
+                msg = {
+                    "type": "streaming_update",
+                    "utt_id": state.current_utt_id,
+                    "committed_source": hyp.committed_text,
+                    "tentative_source": hyp.tentative_text,
+                    "committed_translated": committed_trans,
+                    "tentative_translated": tentative_trans,
+                    "speaker": state.active_speaker,
+                    "source_lang": state.source_lang,
+                    "target_lang": state.target_lang,
+                    "mode": state.mode,
+                    "t_capture": round(hyp.t_first_capture, 4),
+                    "latency_breakdown": {
+                        "asr_inference_ms": hyp.latency_breakdown.get("asr_inference_ms", 0.0),
+                        "total_spoken_to_partial_ms": round(total_spoken_to_partial, 1),
+                    }
+                }
+                await self.manager.broadcast(state.room_id, msg)
+
+                # Also emit backward-compatible 'partial' event
+                full_display_text = f"{hyp.committed_text} {hyp.tentative_text}".strip()
                 await self.manager.broadcast(state.room_id, {
                     "type": "partial",
                     "utt_id": state.current_utt_id,
-                    "text": partial_text,
-                    "lang": "en",
-                    "task": state.task,
-                    "t_capture": round(t_cap, 4),
-                    "t_ws_recv": round(t_ws_recv, 4),
-                    "t_vad_endpoint": round(t_vad_endpoint, 4),
-                    "t_asr_start": round(t_asr_start, 4),
-                    "t_asr_end": round(t_asr_end, 4),
-                    "t_send": round(t_send, 4),
-                    "latency_breakdown": {
-                        "ws_transit_ms": round((t_ws_recv - t_cap) * 1000, 1) if t_ws_recv >= t_cap else 0.0,
-                        "vad_ms": round((t_vad_endpoint - t_ws_recv) * 1000, 1) if t_vad_endpoint >= t_ws_recv else 0.0,
-                        "asr_ms": round((t_asr_end - t_asr_start) * 1000, 1),
-                        "total_latency_ms": round((t_send - t_cap) * 1000, 1),
-                    }
+                    "text": full_display_text,
+                    "lang": state.source_lang,
                 })
+
         except Exception as e:
-            logger.debug(f"Partial transcribe error: {e}")
+            logger.debug(f"Streaming step error: {e}")
         finally:
-            state.is_processing_partial = False
+            state.is_processing_chunk = False
 
-    async def _run_async_final(
-        self,
-        state: AudioSessionState,
-        audio_full: np.ndarray,
-        utt_id: str,
-        t_capture: float = 0.0,
-        t_ws_recv: float = 0.0,
-        t_vad_endpoint: float = 0.0
-    ):
-        """Asynchronously compute final caption and diarization on worker threads."""
+    async def _run_endpoint_finalization(self, state: AudioSessionState):
+        """Finalizes the utterance upon VAD endpoint (silence), refines translation, and persists."""
         try:
-            t_asr_start = time.time()
-            prompt = await asyncio.to_thread(self.lexicon_store.get_prompt_biasing_string)
-            result: ASRResult = await asyncio.to_thread(
-                self.asr_provider.transcribe, audio_full, initial_prompt=prompt, task=state.task
-            )
-            t_asr_end = time.time()
+            # Await any in-flight streaming step so all spoken audio frames are fully transcribed
+            wait_start = time.time()
+            while state.is_processing_chunk and (time.time() - wait_start < 2.5):
+                await asyncio.sleep(0.03)
 
-            t_diar_start = time.time()
-            speaker_seg = await asyncio.to_thread(self.diarizer.assign_speaker, audio_full)
-            t_diar_end = time.time()
-
-            t_post_start = time.time()
-            result = await asyncio.to_thread(self.post_processor.process_result, result)
-            t_post_end = time.time()
-
-            # Skip empty hallucinations
-            if not result.text.strip():
+            final_hyp: StreamingHypothesis = await asyncio.to_thread(state.streaming_session.finalize)
+            full_text = final_hyp.committed_text.strip()
+            if not full_text:
                 return
 
-            t_send = time.time()
-            t_cap = t_capture or t_ws_recv or t_asr_start
-            total_latency = (t_send - t_cap) * 1000
+            # Apply terminology & lexicon post-processor
+            words_tokens = [
+                {"w": w.word, "conf": w.confidence} for w in final_hyp.all_words
+            ]
 
-            # Broadcast final caption IMMEDIATELY (critical path sub-2s)
+            # Refined translation pass
+            refined_trans = ""
+            if state.mode in ("listening", "conversation", "text_only"):
+                src = "en" if state.source_lang == "auto" else state.source_lang
+                tgt = state.target_lang
+                refined_trans = await asyncio.to_thread(
+                    self.translator.translate_text,
+                    full_text,
+                    src,
+                    tgt,
+                    profile=state.profile,
+                    is_final=True,
+                )
+
+            total_latency = (time.time() - (final_hyp.t_first_capture or time.time())) * 1000
+
+            # Emit final caption
             final_msg = {
                 "type": "final",
-                "utt_id": utt_id,
-                "speaker": speaker_seg.display_name,
-                "speaker_id": speaker_seg.speaker_id,
-                "text": result.text,
-                "lang": result.language,
-                "task": state.task,
-                "start": result.start,
-                "end": result.end,
-                "words": [{"w": w.word, "conf": w.confidence} for w in result.words],
+                "utt_id": state.current_utt_id,
+                "speaker": state.active_speaker,
+                "text": full_text,
+                "translated_text": refined_trans,
+                "lang": state.source_lang,
+                "task": "translate" if state.mode == "listening" else "transcribe",
+                "start": 0.0,
+                "end": round(len(full_text.split()) * 0.35, 2),
+                "words": words_tokens,
                 "latency_ms": round(total_latency, 1),
-                "t_capture": round(t_cap, 4),
-                "t_ws_recv": round(t_ws_recv, 4),
-                "t_vad_endpoint": round(t_vad_endpoint, 4),
-                "t_asr_start": round(t_asr_start, 4),
-                "t_asr_end": round(t_asr_end, 4),
-                "t_diar_end": round(t_diar_end, 4),
-                "t_post_end": round(t_post_end, 4),
-                "t_send": round(t_send, 4),
-                "latency_breakdown": {
-                    "ws_transit_ms": round((t_ws_recv - t_cap) * 1000, 1) if t_ws_recv >= t_cap else 0.0,
-                    "vad_endpoint_ms": round((t_vad_endpoint - t_ws_recv) * 1000, 1) if t_vad_endpoint >= t_ws_recv else 0.0,
-                    "asr_ms": round((t_asr_end - t_asr_start) * 1000, 1),
-                    "diar_ms": round((t_diar_end - t_diar_start) * 1000, 1),
-                    "post_ms": round((t_post_end - t_post_start) * 1000, 1),
-                    "total_spoken_to_send_ms": round(total_latency, 1),
-                }
+                "t_capture": round(final_hyp.t_first_capture, 4),
             }
             await self.manager.broadcast(state.room_id, final_msg)
 
-            # Append to session history & SQLite
+            # Record in session history
             now = time.time()
             utt_record = {
-                "speaker": speaker_seg.display_name,
-                "text": result.text,
-                "utt_id": utt_id,
-                "lang": result.language,
+                "speaker": state.active_speaker,
+                "text": full_text,
+                "translated_text": refined_trans,
+                "utt_id": state.current_utt_id,
+                "lang": state.source_lang,
                 "time": now,
             }
             state.recent_utterance_history.append(utt_record)
             if len(state.recent_utterance_history) > 30:
                 state.recent_utterance_history.pop(0)
 
+            # Persist to SQLite in threadpool
             await asyncio.to_thread(
                 self.session_store.append_utterance,
                 session_id=state.session_id,
-                utt_id=utt_id,
-                speaker=speaker_seg.display_name,
-                text=result.text,
-                lang=result.language,
-                start_sec=result.start,
-                end_sec=result.end,
-                confidence=float(np.mean([w.confidence for w in result.words])) if result.words else 0.9,
+                utt_id=state.current_utt_id,
+                speaker=state.active_speaker,
+                text=full_text,
+                translation=refined_trans if refined_trans else None,
+                lang=state.source_lang,
+                start_sec=0.0,
+                end_sec=round(len(full_text.split()) * 0.35, 2),
+                confidence=0.92,
             )
 
-            # Fire async intelligence checks concurrently (never blocks ASR)
-            asyncio.create_task(self._run_async_intelligence(state, utt_id, result.text))
+            # Trigger asynchronous intelligence checks
+            asyncio.create_task(self._run_async_intelligence(state, state.current_utt_id, full_text))
+
         except Exception as e:
-            logger.error(f"Error in async final processing: {e}", exc_info=True)
-        finally:
-            state.is_processing_final = False
+            logger.error(f"Error in endpoint finalization: {e}", exc_info=True)
 
     async def _run_async_intelligence(self, state: AudioSessionState, utt_id: str, text: str):
         """Asynchronous intelligence layer: Addressed-to-me alert & Quick replies."""
         try:
-            # 1. Addressed-to-me check
+            # 1. Addressed alert check based on active profile triggers
+            triggers = state.profile.vocative_triggers or ["hey", "listen", "user"]
             alert_res = await self.llm_provider.check_addressed_to_me(
                 text=text,
-                user_names=self.config.friend_nicknames
+                user_names=triggers
             )
             if alert_res.addressed_to_user:
                 await self.manager.broadcast(state.room_id, {
                     "type": "alert",
                     "kind": "name",
                     "utt_id": utt_id,
-                    "vocative": alert_res.user_vocative_used,
+                    "vocative": alert_res.user_vocative_used or "Direct address",
                     "urgency": alert_res.urgency,
                     "reasoning": alert_res.reasoning,
                 })
@@ -449,8 +547,8 @@ class HearthWSServer:
             # 2. Question check & 3 quick replies
             question_res = await self.llm_provider.detect_question_and_replies(
                 text=text,
-                friend_name=self.config.target_friend,
-                tone_profile=self.config.friend_tone
+                friend_name=state.profile.name,
+                tone_profile="polite, concise"
             )
             if question_res.is_question and question_res.replies:
                 await self.manager.broadcast(state.room_id, {

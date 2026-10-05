@@ -40,6 +40,7 @@ class SessionStore:
                     utt_id TEXT NOT NULL,
                     speaker TEXT NOT NULL,
                     text TEXT NOT NULL,
+                    translation TEXT,
                     plain_text TEXT,
                     lang TEXT,
                     start_sec REAL,
@@ -49,6 +50,10 @@ class SessionStore:
                     FOREIGN KEY(session_id) REFERENCES sessions(session_id) ON DELETE CASCADE
                 );
             """)
+            try:
+                conn.execute("ALTER TABLE utterances ADD COLUMN translation TEXT;")
+            except Exception:
+                pass
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS memories (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -103,7 +108,7 @@ class SessionStore:
             res = dict(session)
             
             u_cur = conn.execute("""
-                SELECT utt_id, speaker, text, plain_text, lang, start_sec, end_sec, confidence, timestamp
+                SELECT utt_id, speaker, text, translation, plain_text, lang, start_sec, end_sec, confidence, timestamp
                 FROM utterances WHERE session_id = ? ORDER BY id ASC
             """, (session_id,))
             res["utterances"] = [dict(r) for r in u_cur.fetchall()]
@@ -116,15 +121,16 @@ class SessionStore:
             return res
 
     def append_utterance(self, session_id: str, utt_id: str, speaker: str, text: str,
+                         translation: Optional[str] = None,
                          lang: str = "en", start_sec: float = 0.0, end_sec: float = 0.0,
                          confidence: float = 1.0, plain_text: Optional[str] = None):
         with self._get_conn() as conn:
             # Ensure session exists
             conn.execute("INSERT OR IGNORE INTO sessions (session_id, title) VALUES (?, 'Live Session')", (session_id,))
             conn.execute("""
-                INSERT INTO utterances (session_id, utt_id, speaker, text, plain_text, lang, start_sec, end_sec, confidence)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (session_id, utt_id, speaker, text, plain_text, lang, start_sec, end_sec, confidence))
+                INSERT INTO utterances (session_id, utt_id, speaker, text, translation, plain_text, lang, start_sec, end_sec, confidence)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (session_id, utt_id, speaker, text, translation, plain_text, lang, start_sec, end_sec, confidence))
             conn.commit()
 
     def update_session_summary(self, session_id: str, summary: str):
@@ -205,10 +211,77 @@ class SessionStore:
         for u in session.get("utterances", []):
             time_tag = f"[{u['start_sec']:.1f}s - {u['end_sec']:.1f}s]"
             md.append(f"**{u['speaker']}** {time_tag}: {u['text']}")
+            if u.get("translation"):
+                md.append(f"> *Translation*: {u['translation']}")
             if u.get("plain_text"):
                 md.append(f"> *Simplified*: {u['plain_text']}")
                 
         return "\n".join(md)
+
+    def export_srt(self, session_id: str) -> str:
+        """Export session utterances as standard SubRip (.srt) subtitles."""
+        session = self.get_session(session_id)
+        if not session:
+            return ""
+
+        def format_srt_time(seconds: float) -> str:
+            hrs = int(seconds // 3600)
+            mins = int((seconds % 3600) // 60)
+            secs = int(seconds % 60)
+            millis = int(round((seconds - int(seconds)) * 1000))
+            return f"{hrs:02d}:{mins:02d}:{secs:02d},{millis:03d}"
+
+        entries = []
+        current_time = 0.0
+        for idx, u in enumerate(session.get("utterances", []), 1):
+            start = u["start_sec"] if u.get("start_sec") is not None and u["start_sec"] > 0 else current_time
+            duration = max(1.5, (u["end_sec"] - u["start_sec"]) if (u.get("end_sec") and u["end_sec"] > start) else len(u["text"].split()) * 0.35)
+            end = start + duration
+            current_time = end + 0.1
+
+            t_start = format_srt_time(start)
+            t_end = format_srt_time(end)
+
+            text_lines = [f"{u['speaker']}: {u['text']}"]
+            if u.get("translation"):
+                text_lines.append(f"[{u.get('lang', 'orig')} -> trans] {u['translation']}")
+
+            entries.append(f"{idx}\n{t_start} --> {t_end}\n" + "\n".join(text_lines) + "\n")
+
+        return "\n".join(entries)
+
+    def export_vtt(self, session_id: str) -> str:
+        """Export session utterances as standard WebVTT (.vtt) captions."""
+        session = self.get_session(session_id)
+        if not session:
+            return "WEBVTT\n"
+
+        def format_vtt_time(seconds: float) -> str:
+            hrs = int(seconds // 3600)
+            mins = int((seconds % 3600) // 60)
+            secs = int(seconds % 60)
+            millis = int(round((seconds - int(seconds)) * 1000))
+            return f"{hrs:02d}:{mins:02d}:{secs:02d}.{millis:03d}"
+
+        lines = ["WEBVTT - Hearth Live Transcript", ""]
+        current_time = 0.0
+        for idx, u in enumerate(session.get("utterances", []), 1):
+            start = u["start_sec"] if u.get("start_sec") is not None and u["start_sec"] > 0 else current_time
+            duration = max(1.5, (u["end_sec"] - u["start_sec"]) if (u.get("end_sec") and u["end_sec"] > start) else len(u["text"].split()) * 0.35)
+            end = start + duration
+            current_time = end + 0.1
+
+            t_start = format_vtt_time(start)
+            t_end = format_vtt_time(end)
+
+            lines.append(f"{idx}")
+            lines.append(f"{t_start} --> {t_end}")
+            lines.append(f"<v {u['speaker']}>{u['text']}")
+            if u.get("translation"):
+                lines.append(f"<i>{u['translation']}</i>")
+            lines.append("")
+
+        return "\n".join(lines)
 
     def export_ics(self, session_id: str) -> str:
         """Export session memory items as an iCalendar (.ics) format for calendar apps."""

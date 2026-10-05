@@ -7,8 +7,10 @@ asr:
   device: cpu
   compute_type: int8
   beam_size: 1
+  cpu_threads: 4
+  streaming_step_sec: 0.25
   language: null # Auto-detect per utterance for code-switching
-  initial_prompt: "Dadaji, Dadi, Ramesh, Sunita, Rohan, Priya, Aarav, Ananya, Metformin, Telmisartan, Atorvastatin, Dal makhani, Chai, Haanji, Achha, Theek hai."
+  initial_prompt: ""
   vad_filter: true
   min_silence_duration_ms: 300
   chunk_duration_sec: 2.0

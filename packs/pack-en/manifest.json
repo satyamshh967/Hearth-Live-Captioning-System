@@ -1,0 +1,18 @@
+{
+  "id": "pack-en",
+  "name": "English Base Pack",
+  "version": "1.0.0",
+  "description": "Offline English speech recognition and speech output.",
+  "languages": [
+    "en"
+  ],
+  "size_mb": 145.0,
+  "checksum_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "license": "MIT",
+  "license_url": "https://github.com/openai/whisper/blob/main/LICENSE",
+  "asr_model": "faster-whisper-base-int8",
+  "mt_models": {},
+  "tts_voice": "en-US-Standard",
+  "is_installed": true,
+  "is_bundled": true
+}

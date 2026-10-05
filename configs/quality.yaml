@@ -8,7 +8,7 @@ asr:
   compute_type: float16
   beam_size: 5
   language: null # Auto-detect per utterance for code-switching
-  initial_prompt: "Dadaji, Dadi, Ramesh, Sunita, Rohan, Priya, Aarav, Ananya, Metformin, Telmisartan, Atorvastatin, Dal makhani, Chai, Haanji, Achha, Theek hai."
+  initial_prompt: ""
   vad_filter: true
   min_silence_duration_ms: 250
   chunk_duration_sec: 2.0

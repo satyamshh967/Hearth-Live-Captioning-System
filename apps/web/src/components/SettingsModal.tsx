@@ -48,7 +48,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
             <div>
               <h3 className="text-xl font-bold text-white">Accessibility & Display</h3>
-              <p className="text-xs text-slate-400">Tailored for Dadaji's comfort and reading ease</p>
+              <p className="text-xs text-slate-400">High legibility and high contrast display settings</p>
             </div>
           </div>
           <button onClick={onClose} className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800">

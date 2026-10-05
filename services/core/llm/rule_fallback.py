@@ -138,11 +138,11 @@ class RuleBasedLLMFallback(LLMProvider):
                 QuickReply(label="Turn off fan", text="Pankha dheema kar do beta.")
             ]
         else:
-            # General polite Dadaji replies
+            # General polite quick replies
             replies = [
-                QuickReply(label="Yes / Haanji", text="Haanji, bilkul theek hai."),
-                QuickReply(label="No / Nahin", text="Nahin beta, abhi zaroorat nahin hai."),
-                QuickReply(label="Later / Baad mein", text="Aaram se baad mein baat karenge.")
+                QuickReply(label="Yes / Absolutely", text="Yes, that sounds good."),
+                QuickReply(label="No, thank you", text="No thank you, I am fine for now."),
+                QuickReply(label="Later please", text="Let's check in a bit later.")
             ]
 
         return QuestionReplies(is_question=True, replies=replies)

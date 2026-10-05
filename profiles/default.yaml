@@ -1,0 +1,24 @@
+id: default
+name: Default (General)
+description: Everyday conversational speech with standard vocabulary.
+vocabulary:
+- Hello
+- Thank you
+- Please
+- Welcome
+- Excuse me
+- 'Yes'
+- 'No'
+- Tomorrow
+- Today
+- Meeting
+- Family
+- Coffee
+- Water
+protected_terms: []
+vocative_triggers:
+- hey
+- listen
+- excuse me
+preferred_source_lang: en
+preferred_target_lang: es

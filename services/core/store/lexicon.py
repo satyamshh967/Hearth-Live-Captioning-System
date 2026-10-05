@@ -37,57 +37,28 @@ def soundex(name: str) -> str:
     return padded
 
 
-DEFAULT_DADJI_LEXICON = [
-    # Kinship & Family Names
-    {"word": "Dadaji", "category": "family", "phonetic": "D320"},
-    {"word": "Dadi", "category": "family", "phonetic": "D300"},
-    {"word": "Ramesh", "category": "family", "phonetic": "R520"},
-    {"word": "Sunita", "category": "family", "phonetic": "S530"},
-    {"word": "Rohan", "category": "family", "phonetic": "R500"},
-    {"word": "Priya", "category": "family", "phonetic": "P600"},
-    {"word": "Aarav", "category": "family", "phonetic": "A610"},
-    {"word": "Ananya", "category": "family", "phonetic": "A550"},
-    {"word": "Chachi", "category": "family", "phonetic": "C200"},
-    {"word": "Chacha", "category": "family", "phonetic": "C200"},
-    {"word": "Bhabhi", "category": "family", "phonetic": "B100"},
-    {"word": "Bhaiya", "category": "family", "phonetic": "B000"},
-    {"word": "Tauji", "category": "family", "phonetic": "T200"},
-    {"word": "Maasi", "category": "family", "phonetic": "M200"},
-    {"word": "Mausi", "category": "family", "phonetic": "M200"},
-    {"word": "Nana", "category": "family", "phonetic": "N500"},
-    {"word": "Nani", "category": "family", "phonetic": "N500"},
-    # Food & Dinner items
-    {"word": "Dal makhani", "category": "food", "phonetic": "D452"},
-    {"word": "Paneer", "category": "food", "phonetic": "P560"},
-    {"word": "Roti", "category": "food", "phonetic": "R300"},
-    {"word": "Chai", "category": "food", "phonetic": "C000"},
-    {"word": "Kheer", "category": "food", "phonetic": "K600"},
-    {"word": "Subzi", "category": "food", "phonetic": "S120"},
-    {"word": "Khana", "category": "food", "phonetic": "K500"},
-    {"word": "Pulao", "category": "food", "phonetic": "P400"},
-    {"word": "Paratha", "category": "food", "phonetic": "P630"},
-    {"word": "Dahi", "category": "food", "phonetic": "D000"},
-    # Medicines & Medical terms
-    {"word": "Metformin", "category": "medicine", "phonetic": "M316"},
-    {"word": "Telmisartan", "category": "medicine", "phonetic": "T452"},
-    {"word": "Atorvastatin", "category": "medicine", "phonetic": "A361"},
-    {"word": "Ecosprin", "category": "medicine", "phonetic": "E216"},
-    {"word": "Blood Sugar", "category": "medicine", "phonetic": "B432"},
-    {"word": "Blood Pressure", "category": "medicine", "phonetic": "B431"},
-    {"word": "Doctor Verma", "category": "medicine", "phonetic": "D236"},
-    {"word": "Apollo Clinic", "category": "medicine", "phonetic": "A142"},
+DEFAULT_LEXICON = [
+    # Everyday conversational and polite words
+    {"word": "Hello", "category": "phrase", "phonetic": "H400"},
+    {"word": "Thank you", "category": "phrase", "phonetic": "T520"},
+    {"word": "Please", "category": "phrase", "phonetic": "P420"},
+    {"word": "Welcome", "category": "phrase", "phonetic": "W425"},
+    {"word": "Excuse me", "category": "phrase", "phonetic": "E225"},
+    {"word": "Yes", "category": "phrase", "phonetic": "Y200"},
+    {"word": "No", "category": "phrase", "phonetic": "N000"},
+    {"word": "Tomorrow", "category": "general", "phonetic": "T560"},
+    {"word": "Today", "category": "general", "phonetic": "T300"},
+    {"word": "Meeting", "category": "general", "phonetic": "M352"},
+    {"word": "Family", "category": "general", "phonetic": "F540"},
+    {"word": "Water", "category": "general", "phonetic": "W360"},
+    {"word": "Coffee", "category": "general", "phonetic": "C100"},
+    {"word": "Tea", "category": "general", "phonetic": "T000"},
+    {"word": "Breakfast", "category": "food", "phonetic": "B621"},
+    {"word": "Dinner", "category": "food", "phonetic": "D560"},
+    {"word": "Medicine", "category": "medicine", "phonetic": "M325"},
+    {"word": "Doctor", "category": "medicine", "phonetic": "D236"},
+    {"word": "Appointment", "category": "medicine", "phonetic": "A153"},
     {"word": "Prescription", "category": "medicine", "phonetic": "P626"},
-    # Conversational Hinglish phrases
-    {"word": "Haanji", "category": "phrase", "phonetic": "H520"},
-    {"word": "Nahin", "category": "phrase", "phonetic": "N500"},
-    {"word": "Shukriya", "category": "phrase", "phonetic": "S260"},
-    {"word": "Theek hai", "category": "phrase", "phonetic": "T200"},
-    {"word": "Achha", "category": "phrase", "phonetic": "A200"},
-    {"word": "Jaldi", "category": "phrase", "phonetic": "J430"},
-    {"word": "Shanti", "category": "phrase", "phonetic": "S530"},
-    {"word": "Beta", "category": "phrase", "phonetic": "B300"},
-    {"word": "Beti", "category": "phrase", "phonetic": "B300"},
-    {"word": "Bachho", "category": "phrase", "phonetic": "B200"},
 ]
 
 
@@ -135,7 +106,7 @@ class LexiconStore:
             # Seed default lexicon if empty
             cursor = conn.execute("SELECT COUNT(*) as count FROM lexicon")
             if cursor.fetchone()["count"] == 0:
-                for item in DEFAULT_DADJI_LEXICON:
+                for item in DEFAULT_LEXICON:
                     phonetic = item.get("phonetic") or soundex(item["word"])
                     conn.execute("""
                         INSERT OR IGNORE INTO lexicon (word, phonetic, category, user_confirmed)
@@ -206,3 +177,14 @@ class LexiconStore:
         if result and result[1] >= threshold:
             return result[0], result[1]
         return None
+
+    def load_profile_vocabulary(self, words: List[str], category: str = "profile"):
+        """Imports terms from an active Profile into the personal lexicon."""
+        with self._get_conn() as conn:
+            for w in words:
+                phonetic = soundex(w)
+                conn.execute("""
+                    INSERT OR IGNORE INTO lexicon (word, phonetic, category, user_confirmed)
+                    VALUES (?, ?, ?, 1)
+                """, (w, phonetic, category))
+            conn.commit()

@@ -1,0 +1,22 @@
+{
+  "id": "pack-hi",
+  "name": "Hindi (\u0939\u093f\u0928\u094d\u0926\u0940) Pack",
+  "version": "1.0.0",
+  "description": "Hindi speech recognition, Hindi-English code-switching and bidirectional MT.",
+  "languages": [
+    "hi",
+    "en"
+  ],
+  "size_mb": 290.0,
+  "checksum_sha256": "ef2d127de37b942baad06145e54b0c619a1f22327b2ebbcfbec78f5564afe39d",
+  "license": "MIT / AI4Bharat IndicTrans2",
+  "license_url": "https://github.com/AI4Bharat/IndicTrans2/blob/main/LICENSE",
+  "asr_model": "faster-whisper-base-int8",
+  "mt_models": {
+    "en_hi": "indictrans2-en-hi",
+    "hi_en": "indictrans2-hi-en"
+  },
+  "tts_voice": "hi-IN-Standard",
+  "is_installed": true,
+  "is_bundled": false
+}

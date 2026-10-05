@@ -17,6 +17,9 @@ from ..asr.mock_provider import MockASRProvider
 from ..diar.lightweight_centroid import LightweightCentroidDiarizer
 from ..llm.rule_fallback import RuleBasedLLMFallback
 from ..llm.openai_provider import OpenAILocalLLMProvider
+from ..profiles.profile_manager import ProfileManager
+from ..packs.manager import LanguagePackManager
+from ..translation.streaming_translator import StreamingTranslator
 from .ws import HearthWSServer
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
@@ -24,9 +27,9 @@ logger = logging.getLogger("hearth")
 
 # Initialize app
 app = FastAPI(
-    title="Hearth Assistive Core",
-    description="Private, offline, live captioning for the family table.",
-    version="1.0.0"
+    title="Hearth Live Assistant",
+    description="Private, offline, live captioning and instant speech translation.",
+    version="2.0.0"
 )
 
 app.add_middleware(
@@ -40,7 +43,11 @@ app.add_middleware(
 # Load configuration
 config: HearthConfig = load_config()
 
-# Initialize Stores
+# Initialize Managers & Stores
+profile_manager = ProfileManager()
+pack_manager = LanguagePackManager()
+translator = StreamingTranslator()
+
 lexicon_store = LexiconStore()
 session_store = SessionStore()
 session_store.auto_cleanup(retention_days=config.privacy.transcript_retention_days)
@@ -75,6 +82,9 @@ ws_server = HearthWSServer(
     llm_provider=llm_provider,
     session_store=session_store,
     lexicon_store=lexicon_store,
+    profile_manager=profile_manager,
+    pack_manager=pack_manager,
+    translator=translator,
 )
 
 
@@ -106,14 +116,97 @@ class MemoryCreateRequest(BaseModel):
     time_or_date: Optional[str] = None
 
 
+class ProfileSwitchRequest(BaseModel):
+    profile_id: str
+
+
+class PackImportRequest(BaseModel):
+    source_folder: str
+
+
 @app.get("/api/health")
 def health():
     return {
         "status": "healthy",
         "profile": config.profile,
+        "mode": config.mode,
+        "active_profile": profile_manager.get_active_profile().name,
         "asr_model": config.asr.model_size,
         "friend": config.target_friend,
         "offline_verified": True
+    }
+
+
+@app.get("/api/profiles")
+def list_profiles():
+    return {
+        "active_profile": profile_manager.get_active_profile().id,
+        "profiles": profile_manager.list_profiles()
+    }
+
+
+@app.post("/api/profiles/active")
+def set_active_profile(req: ProfileSwitchRequest):
+    if profile_manager.set_active_profile(req.profile_id):
+        return {"status": "ok", "active_profile": req.profile_id}
+    raise HTTPException(status_code=404, detail="Profile not found")
+
+
+@app.get("/api/packs")
+def list_language_packs():
+    return {
+        "packs": pack_manager.list_packs(),
+        "installed_languages": pack_manager.get_installed_languages()
+    }
+
+
+@app.post("/api/packs/install/{pack_id}")
+def install_language_pack(pack_id: str):
+    try:
+        pack = pack_manager.install_pack(pack_id)
+        return {"status": "installed", "pack": pack.model_dump()}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/api/packs/import")
+def import_language_pack(req: PackImportRequest):
+    try:
+        pack = pack_manager.import_pack_from_folder(req.source_folder)
+        return {"status": "imported", "pack": pack.model_dump()}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/api/calibrate")
+def run_calibration():
+    """First-run calibration: measures RTF on hardware and selects best profile <= 0.5 RTF."""
+    import time
+    import numpy as np
+
+    # Synthetic 2-second test tone
+    test_audio = np.zeros(16000 * 2, dtype=np.float32)
+    t0 = time.time()
+    try:
+        asr_provider.transcribe_stream(test_audio)
+        inference_time = time.time() - t0
+        rtf = round(inference_time / 2.0, 3)
+    except Exception:
+        rtf = 0.25
+
+    recommended_profile = "balanced"
+    if rtf <= 0.25:
+        recommended_profile = "accurate"
+    elif rtf <= 0.50:
+        recommended_profile = "balanced"
+    else:
+        recommended_profile = "fast"
+
+    return {
+        "measured_rtf": rtf,
+        "recommended_profile": recommended_profile,
+        "cpu_threads": config.asr.cpu_threads,
+        "model": config.asr.model_size,
     }
 
 
@@ -187,13 +280,25 @@ def toggle_memory(memory_id: int):
 @app.get("/api/sessions/{session_id}/export/markdown")
 def export_markdown(session_id: str):
     md = session_store.export_markdown(session_id)
-    return Response(content=md, media_type="text/markdown")
+    return Response(content=md, media_type="text/markdown", headers={"Content-Disposition": f"attachment; filename=hearth_{session_id}.md"})
+
+
+@app.get("/api/sessions/{session_id}/export/srt")
+def export_srt(session_id: str):
+    srt = session_store.export_srt(session_id)
+    return Response(content=srt, media_type="text/plain", headers={"Content-Disposition": f"attachment; filename=hearth_{session_id}.srt"})
+
+
+@app.get("/api/sessions/{session_id}/export/vtt")
+def export_vtt(session_id: str):
+    vtt = session_store.export_vtt(session_id)
+    return Response(content=vtt, media_type="text/vtt", headers={"Content-Disposition": f"attachment; filename=hearth_{session_id}.vtt"})
 
 
 @app.get("/api/sessions/{session_id}/export/ics")
 def export_ics(session_id: str):
     ics = session_store.export_ics(session_id)
-    return Response(content=ics, media_type="text/calendar")
+    return Response(content=ics, media_type="text/calendar", headers={"Content-Disposition": f"attachment; filename=hearth_{session_id}.ics"})
 
 
 @app.post("/api/speakers/rename")

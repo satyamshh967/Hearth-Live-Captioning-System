@@ -1,3 +1,5 @@
+export type AppMode = 'captions' | 'listening' | 'conversation' | 'text_only' | 'custom';
+
 export interface WordItem {
   w: string;
   conf: number;
@@ -8,8 +10,11 @@ export interface Utterance {
   speaker: string;
   speaker_id?: string;
   text: string;
+  translated_text?: string;
   plain_text?: string;
   lang: string;
+  source_lang?: string;
+  target_lang?: string;
   start: number;
   end: number;
   words?: WordItem[];
@@ -18,6 +23,23 @@ export interface Utterance {
   timestamp: number;
   addressed_to_me?: boolean;
   task?: 'transcribe' | 'translate';
+  mode?: AppMode;
+  t_capture?: number;
+  latency_breakdown?: Record<string, number>;
+}
+
+export interface StreamingState {
+  utt_id: string;
+  committed_source: string;
+  tentative_source: string;
+  committed_translated: string;
+  tentative_translated: string;
+  speaker: string;
+  source_lang: string;
+  target_lang: string;
+  mode: AppMode;
+  t_capture: number;
+  latency_breakdown?: Record<string, number>;
 }
 
 export interface QuickReply {
@@ -43,5 +65,25 @@ export interface LexiconItem {
   user_confirmed: number;
 }
 
-export type ThemeMode = 'oled-dark' | 'warm-amber' | 'high-contrast-light' | 'midnight-blue';
+export interface ProfileItem {
+  id: string;
+  name: string;
+  description: string;
+  vocab_count: number;
+  is_active: boolean;
+}
+
+export interface LanguagePack {
+  id: string;
+  name: string;
+  version: string;
+  description: string;
+  languages: string[];
+  size_mb: number;
+  license: string;
+  tts_voice: string;
+  is_installed: boolean;
+}
+
+export type ThemeMode = 'midnight-blue' | 'high-contrast-light' | 'oled-dark' | 'warm-amber';
 export type DeviceRole = 'all' | 'display' | 'mic';

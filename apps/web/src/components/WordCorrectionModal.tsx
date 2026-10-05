@@ -69,7 +69,7 @@ export const WordCorrectionModal: React.FC<WordCorrectionModalProps> = ({
               onChange={(e) => setCorrectedWord(e.target.value)}
               className="w-full p-3 rounded-xl bg-slate-800 border-2 border-amber-500/60 focus:border-amber-400 text-white text-lg font-bold outline-none transition"
               autoFocus
-              placeholder="e.g. Dadaji, Metformin, Dal makhani"
+              placeholder="e.g. Maya, Ibuprofen, Risotto"
             />
           </div>
 

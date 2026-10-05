@@ -51,7 +51,7 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   return (
     <header className="flex flex-wrap items-center justify-between px-4 py-3 bg-slate-900/90 border-b border-slate-800 backdrop-blur z-20">
-      {/* Brand & Friend Target */}
+      {/* Brand & Engine Status */}
       <div className="flex items-center space-x-3">
         <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-500 shadow-inner">
           <Flame className="w-6 h-6 fill-amber-500" />
@@ -59,14 +59,15 @@ export const Header: React.FC<HeaderProps> = ({
         <div>
           <div className="flex items-center space-x-2">
             <h1 className="text-xl font-bold tracking-tight text-white">Hearth</h1>
-            <span className="text-xs px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-slate-300 font-medium">
-              for Dadaji
+            <span className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-950/70 border border-emerald-500/40 text-emerald-400 font-semibold flex items-center space-x-1">
+              <ShieldCheck className="w-3 h-3" />
+              <span>{modelProfile.toUpperCase()} · Offline ready</span>
             </span>
           </div>
           <div className="flex items-center space-x-2 text-xs text-slate-400">
-            <span>{modelProfile.toUpperCase()} ASR</span>
+            <span>Live Streaming Core</span>
             <span>•</span>
-            <span>{latencyMs > 0 ? `${latencyMs.toFixed(0)}ms` : 'sub-2s target'}</span>
+            <span>{latencyMs > 0 ? `${latencyMs.toFixed(0)}ms` : 'sub-500ms target'}</span>
           </div>
         </div>
       </div>
@@ -84,9 +85,23 @@ export const Header: React.FC<HeaderProps> = ({
             }`}
           >
             {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
-            <span>{isListening ? 'Listening...' : 'Start Captions'}</span>
+            <span>{isListening ? 'Stop' : 'Start'}</span>
           </button>
         )}
+
+        {/* Mode Selector Button */}
+        <button
+          onClick={onToggleTranslate}
+          className={`flex items-center space-x-1.5 px-3 py-2 rounded-xl text-sm font-semibold border transition-all shadow ${
+            translateMode
+              ? 'bg-amber-500/20 border-amber-500/60 text-amber-300'
+              : 'bg-slate-800/80 hover:bg-slate-700 border-slate-700 text-slate-200'
+          }`}
+          title="Switch Translation Mode"
+        >
+          <Languages className="w-4 h-4 text-amber-400" />
+          <span className="hidden sm:inline">Modes</span>
+        </button>
 
         {/* "What did I miss?" Catch-up button */}
         <button
@@ -95,24 +110,8 @@ export const Header: React.FC<HeaderProps> = ({
           title="2-sentence recap of what you missed"
         >
           <Sparkles className="w-4 h-4 text-indigo-400" />
-          <span className="hidden sm:inline">What did I miss?</span>
-          <span className="sm:hidden">Recap</span>
+          <span className="hidden sm:inline">Recap</span>
         </button>
-
-        {/* Live Translator to English toggle */}
-        <button
-          onClick={onToggleTranslate}
-          className={`flex items-center space-x-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all border ${
-            translateMode
-              ? 'bg-blue-900/80 border-blue-500 text-blue-100 shadow'
-              : 'bg-slate-800/80 hover:bg-slate-800 border-slate-700 text-slate-300'
-          }`}
-          title="Live Speech Translator: Translates multilingual/Hindi speech directly into English captions"
-        >
-          <Languages className="w-4 h-4 text-blue-400" />
-          <span className="hidden md:inline">Live Translate</span>
-        </button>
-
         {/* Doctor Visit / Plain Language toggle */}
         <button
           onClick={onTogglePlainLanguage}

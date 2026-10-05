@@ -1,15 +1,19 @@
-.PHONY: dev test eval build run docker-build docker-up clean help
+.PHONY: app dev test eval build run docker-build docker-up clean help
 
 help:
-	@echo "Hearth — Assistive Offline Captions"
+	@echo "Hearth — Assistive Offline Captions & Live Speech Translation"
 	@echo "Commands:"
+	@echo "  make app          Single-command launcher (builds, starts backend, opens browser)"
 	@echo "  make dev          Start backend API and Vite web dev server"
 	@echo "  make test         Run pytest unit and offline privacy tests"
-	@echo "  make eval         Run ASR WER and intent evaluation harness"
+	@echo "  make eval         Run streaming latency & WER benchmark harness"
 	@echo "  make build        Build frontend PWA bundle"
 	@echo "  make docker-build Build Docker container"
 	@echo "  make docker-up    Run via docker-compose"
 	@echo "  make clean        Remove cache and temporary files"
+
+app:
+	python scripts/launch_hearth.py
 
 build:
 	cd apps/web && npm run build

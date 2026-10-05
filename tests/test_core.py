@@ -1,4 +1,5 @@
 import pytest
+import time
 import numpy as np
 from services.core.config import load_config
 from services.core.store.lexicon import LexiconStore, soundex
@@ -14,11 +15,12 @@ def test_config_loading():
     cfg = load_config("tiny")
     assert cfg.profile == "tiny"
     assert cfg.asr.model_size == "tiny"
-    assert "dadaji" in cfg.friend_nicknames
+    assert "listener" in cfg.friend_nicknames
 
     cfg_b = load_config("balanced")
     assert cfg_b.profile == "balanced"
     assert cfg_b.asr.model_size == "base"
+    assert cfg_b.asr.cpu_threads == 4
 
 
 def test_lexicon_and_soundex(tmp_path):
@@ -31,7 +33,7 @@ def test_lexicon_and_soundex(tmp_path):
     assert soundex("Ramesh") == "R520"
 
     items = store.get_all()
-    assert len(items) >= 30
+    assert len(items) >= 20
 
     # Add custom word
     store.add_or_update("Gulab Jamun", category="food")
@@ -49,6 +51,7 @@ def test_lexicon_and_soundex(tmp_path):
 def test_post_processor(tmp_path):
     db_file = str(tmp_path / "test_post.db")
     store = LexiconStore(db_path=db_file)
+    store.load_profile_vocabulary(["Metformin", "Dadaji", "Dal makhani", "Roti"])
     processor = LexiconPostProcessor(store)
 
     # Test single-word fuzzy correction
@@ -68,23 +71,34 @@ def test_session_store_and_privacy(tmp_path):
     db_file = str(tmp_path / "test_sess.db")
     store = SessionStore(db_path=db_file)
 
-    s_id = store.create_session("Dinner with Priya & Rohan")
-    store.append_utterance(s_id, "u1", "Priya", "Dadaji, did you take medicine?", lang="en", confidence=0.98)
-    store.append_utterance(s_id, "u2", "Dadaji", "Haan beta, le li thi.", lang="hi", confidence=0.95)
+    s_id = store.create_session("Dinner with Family")
+    store.append_utterance(s_id, "u1", "Speaker 1", "Did you take your medicine?", translation="¿Tomaste tu medicina?", lang="en", confidence=0.98)
+    store.append_utterance(s_id, "u2", "Speaker 2", "Yes, I took it before dinner.", translation="Sí, la tomé antes de cenar.", lang="en", confidence=0.95)
     
     mem_id = store.add_memory(s_id, "medicine", "Evening dose", "Metformin taken before food", "7:30 PM")
     assert mem_id > 0
     assert store.toggle_memory_confirmation(mem_id) is True
 
     # Speaker renaming
-    store.rename_speaker("Speaker 1", "Priya")
+    store.rename_speaker("Speaker 1", "Alex")
     names = store.get_speaker_names()
-    assert names.get("Speaker 1") == "Priya"
+    assert names.get("Speaker 1") == "Alex"
 
     # Export formats
     md = store.export_markdown(s_id)
-    assert "Dinner with Priya & Rohan" in md
+    assert "Dinner with Family" in md
     assert "Evening dose" in md
+    assert "¿Tomaste tu medicina?" in md
+
+    srt = store.export_srt(s_id)
+    assert "00:00:00,000 -->" in srt
+    assert "Alex: Did you take your medicine?" in srt
+    assert "¿Tomaste tu medicina?" in srt
+
+    vtt = store.export_vtt(s_id)
+    assert "WEBVTT - Hearth Live Transcript" in vtt
+    assert "<v Alex>Did you take your medicine?" in vtt
+    assert "<i>¿Tomaste tu medicina?</i>" in vtt
 
     ics = store.export_ics(s_id)
     assert "BEGIN:VCALENDAR" in ics
@@ -157,3 +171,54 @@ async def test_rule_based_llm_intelligence():
     memories = await llm.extract_memories(history)
     assert len(memories) >= 1
     assert any("Metformin" in m.title for m in memories)
+
+
+def test_profile_manager(tmp_path):
+    from services.core.profiles.profile_manager import ProfileManager
+    pm = ProfileManager(profiles_dir=str(tmp_path / "profiles"))
+    profiles = pm.list_profiles()
+    assert len(profiles) >= 4
+    assert any(p["id"] == "family" for p in profiles)
+    assert any(p["id"] == "clinic" for p in profiles)
+    assert pm.set_active_profile("clinic") is True
+    active = pm.get_active_profile()
+    assert active.id == "clinic"
+    assert "Metformin" in active.vocabulary
+
+    # Terminology protection test
+    text = "Please take Metformin 500mg before dinner."
+    protected_text, placeholders = active.protect_terms_in_text(text)
+    assert "__TERM_" in protected_text
+    assert "Metformin" not in protected_text
+    restored = active.restore_protected_terms(protected_text, placeholders)
+    assert restored == text
+
+
+def test_streaming_translator():
+    from services.core.translation.streaming_translator import StreamingTranslator
+    translator = StreamingTranslator()
+
+    # Spanish translation test
+    es_trans = translator.translate_text("hello", "en", "es")
+    assert "hola" in es_trans.lower()
+
+    # Hindi translation test
+    hi_trans = translator.translate_text("water", "en", "hi")
+    assert "पानी" in hi_trans
+
+    # Clause segmentation triggers
+    assert translator.should_translate_clause("Hello how are you?", 0.0) is True
+    assert translator.should_translate_clause("One two three four five six", 0.0) is True
+    assert translator.should_translate_clause("one two", time.time()) is False
+
+
+def test_language_pack_manager(tmp_path):
+    from services.core.packs.manager import LanguagePackManager
+    lpm = LanguagePackManager(packs_dir=str(tmp_path / "packs"))
+    packs = lpm.list_packs()
+    assert len(packs) >= 3
+    installed = [p for p in packs if p["is_installed"]]
+    assert len(installed) >= 1
+    langs = lpm.get_installed_languages()
+    assert "en" in langs
+

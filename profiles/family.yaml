@@ -1,0 +1,33 @@
+id: family
+name: Family Table
+description: Tailored for family dinners, household conversations, and relatives.
+vocabulary:
+- Grandma
+- Grandpa
+- Uncle
+- Aunt
+- Mom
+- Dad
+- Brother
+- Sister
+- Dinner
+- Recipe
+- Tea
+- Chai
+- Water
+- Plate
+- Dessert
+- Medicine
+- Metformin
+protected_terms:
+- Grandma
+- Grandpa
+- Chai
+vocative_triggers:
+- grandpa
+- grandma
+- dad
+- mom
+- listen
+preferred_source_lang: en
+preferred_target_lang: hi

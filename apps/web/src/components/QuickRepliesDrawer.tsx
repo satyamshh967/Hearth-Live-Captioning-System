@@ -53,7 +53,7 @@ export const QuickRepliesDrawer: React.FC<QuickRepliesDrawerProps> = ({
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center space-x-2 text-xs font-bold text-amber-400 uppercase tracking-wider">
             <MessageSquare className="w-3.5 h-3.5" />
-            <span>Dadaji's Quick Replies</span>
+            <span>Quick Response Cards</span>
           </div>
           <button
             onClick={onDismiss}

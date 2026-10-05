@@ -10,7 +10,9 @@ class ASRConfig(BaseModel):
     model_size: str = "base"
     device: str = "cpu"
     compute_type: str = "int8"
-    beam_size: int = 2
+    beam_size: int = 1
+    cpu_threads: int = 4
+    streaming_step_sec: float = 0.25
     language: Optional[str] = None  # None = auto-detect per utterance for code-switching
     initial_prompt: str = ""
     vad_filter: bool = True
@@ -36,7 +38,7 @@ class LLMConfig(BaseModel):
 
 class TTSConfig(BaseModel):
     provider: str = "web_speech_fallback"
-    voice: str = "en-IN"
+    voice: str = "en-US"
 
 
 class PrivacyConfig(BaseModel):
@@ -46,10 +48,14 @@ class PrivacyConfig(BaseModel):
 
 
 class HearthConfig(BaseModel):
-    profile: str = "balanced"
-    target_friend: str = "Ramesh (Dadaji)"
-    friend_nicknames: List[str] = Field(default_factory=lambda: ["dadaji", "dada", "ramesh", "rameshji", "uncle"])
-    friend_tone: str = "warm, polite, grandfatherly, concise Hinglish"
+    profile: str = "balanced"  # fast, balanced, accurate
+    active_profile: str = "default"  # vocabulary profile: default, family, work, clinic
+    mode: str = "captions"  # captions, listening, conversation, text_only, custom
+    source_language: str = "auto"
+    target_language: str = "en"
+    target_friend: str = "Listener"
+    friend_nicknames: List[str] = Field(default_factory=lambda: ["listener", "friend", "user"])
+    friend_tone: str = "warm, polite, concise"
     asr: ASRConfig = Field(default_factory=ASRConfig)
     diarization: DiarizationConfig = Field(default_factory=DiarizationConfig)
     llm: LLMConfig = Field(default_factory=LLMConfig)

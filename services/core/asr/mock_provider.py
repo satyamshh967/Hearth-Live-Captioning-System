@@ -10,7 +10,7 @@ class MockASRProvider(ASRProvider):
     Mock ASR provider for instantaneous testing, offline container checks,
     and fast CI without requiring pre-downloaded model weights.
     """
-    def __init__(self, response_text: str = "Dadaji, aapne Metformin li kya with warm water?"):
+    def __init__(self, response_text: str = "Hello, please pass the water across the table."):
         self.response_text = response_text
         self.sample_count = 0
 
@@ -18,7 +18,7 @@ class MockASRProvider(ASRProvider):
         t0 = time.time()
         self.sample_count += 1
         
-        text = "Dadaji, did you take your Metformin today with warm water?" if task == "translate" else self.response_text
+        text = "Hello, did you take your scheduled medicine today?" if task == "translate" else self.response_text
         words_list = text.split()
         duration = len(audio) / sample_rate if len(audio) > 0 else 1.5
         step = duration / max(len(words_list), 1)
@@ -46,6 +46,6 @@ class MockASRProvider(ASRProvider):
         )
 
     def transcribe_stream(self, audio_chunk: np.ndarray, sample_rate: int = 16000, task: str = "transcribe") -> str:
-        text = "Dadaji, did you take" if task == "translate" else self.response_text
+        text = "Hello, did you take" if task == "translate" else self.response_text
         words = text.split()
         return " ".join(words[:min(4, len(words))])

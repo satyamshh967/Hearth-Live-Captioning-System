@@ -1,0 +1,22 @@
+{
+  "id": "pack-es",
+  "name": "Spanish (Espa\u00f1ol) Pack",
+  "version": "1.0.0",
+  "description": "Spanish ASR, English<->Spanish bidirectional translation, and voice.",
+  "languages": [
+    "es",
+    "en"
+  ],
+  "size_mb": 210.0,
+  "checksum_sha256": "4b227777d4dd1fc61c6f884f48641d02b4d121d3fd328cb08b5531fcacdabf8a",
+  "license": "Apache-2.0 / CC-BY-4.0 (OPUS-MT)",
+  "license_url": "https://github.com/Helsinki-NLP/Opus-MT-train/blob/master/LICENSE",
+  "asr_model": "faster-whisper-base-int8",
+  "mt_models": {
+    "en_es": "opus-mt-en-es",
+    "es_en": "opus-mt-es-en"
+  },
+  "tts_voice": "es-ES-Standard",
+  "is_installed": true,
+  "is_bundled": false
+}

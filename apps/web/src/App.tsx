@@ -4,9 +4,15 @@ import {
   QuickReply,
   LexiconItem,
   DeviceRole,
+  AppMode,
+  StreamingState,
 } from './types';
 import { Header } from './components/Header';
 import { CaptionStream } from './components/CaptionStream';
+import { ConversationView } from './components/ConversationView';
+import { HomeScreen } from './components/HomeScreen';
+import { ModeSelectorSheet } from './components/ModeSelectorSheet';
+import { DebugHud } from './components/DebugHud';
 import { AddressedAlertBanner } from './components/AddressedAlertBanner';
 import { QuickRepliesDrawer } from './components/QuickRepliesDrawer';
 import { CatchupModal } from './components/CatchupModal';
@@ -33,23 +39,32 @@ import {
 export const App: React.FC = () => {
   // Query parameters for table-mic pairing
   const queryParams = new URLSearchParams(window.location.search);
-  const initialRoom = queryParams.get('room') || 'TABLE-4821';
+  const initialRoom = queryParams.get('room') || 'TABLE-1001';
   const initialRole = (queryParams.get('role') as DeviceRole) || 'all';
 
   // Core Real-Time State
   const [isListening, setIsListening] = useState(false);
   const [utterances, setUtterances] = useState<Utterance[]>([]);
-  const [partialText, setPartialText] = useState('');
+  const [streamingState, setStreamingState] = useState<StreamingState | null>(null);
   const [roomId] = useState(initialRoom);
   const [deviceRole, setDeviceRole] = useState<DeviceRole>(initialRole);
   const [modelProfile, setModelProfile] = useState('balanced');
   const [latencyMs, setLatencyMs] = useState(0);
+  const [totalSpokenToDisplayMs, setTotalSpokenToDisplayMs] = useState(0);
+  const [activeProfileName, setActiveProfileName] = useState('Default (General)');
+
+  // Mode and Language Selection
+  const [activeMode, setActiveMode] = useState<AppMode>('captions');
+  const [sourceLang, setSourceLang] = useState<string>('auto');
+  const [targetLang, setTargetLang] = useState<string>('en');
+  const [isModeSheetOpen, setIsModeSheetOpen] = useState(false);
+  const [isDebugHudOpen, setIsDebugHudOpen] = useState(false);
+  const [hasStartedSession, setHasStartedSession] = useState(false);
 
   // Intelligence State
   const [activeAlert, setActiveAlert] = useState<{ vocative: string; utt_id: string } | null>(null);
   const [quickReplies, setQuickReplies] = useState<QuickReply[]>([]);
   const [plainLanguageMode, setPlainLanguageMode] = useState(false);
-  const [translateMode, setTranslateMode] = useState(false);
 
   // Modals & Drawers
   const [isCatchupOpen, setIsCatchupOpen] = useState(false);
@@ -84,6 +99,21 @@ export const App: React.FC = () => {
   // WebSocket Ref
   const wsRef = useRef<WebSocket | null>(null);
 
+  // Keyboard Shortcuts: Ctrl+Shift+L for Debug HUD, Space for mic start/stop
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'L' || e.key === 'l')) {
+        e.preventDefault();
+        setIsDebugHudOpen((prev) => !prev);
+      } else if (e.code === 'Space' && e.target === document.body) {
+        e.preventDefault();
+        handleToggleListening();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isListening]);
+
   // Sync settings to localStorage
   useEffect(() => {
     localStorage.setItem('hearth_font_size', String(fontSize));
@@ -98,6 +128,8 @@ export const App: React.FC = () => {
     fetchHealth()
       .then((data) => {
         if (data.profile) setModelProfile(data.profile);
+        if (data.mode) setActiveMode(data.mode);
+        if (data.active_profile) setActiveProfileName(data.active_profile);
       })
       .catch((err) => console.debug('Health fetch failed:', err));
 
@@ -146,46 +178,109 @@ export const App: React.FC = () => {
 
   // Handle incoming server messages
   const handleServerMessage = (msg: any) => {
+    const renderTime = Date.now() / 1000.0;
+
     if (msg.type === 'status') {
       if (msg.latency_ms) setLatencyMs(msg.latency_ms);
       if (msg.profile) setModelProfile(msg.profile);
-      if (msg.task) setTranslateMode(msg.task === 'translate');
+      if (msg.mode) setActiveMode(msg.mode);
+      if (msg.active_profile) setActiveProfileName(msg.active_profile);
+
+    } else if (msg.type === 'streaming_update') {
+      // Live streaming update with solid committed words + tentative mutable tail
+      setStreamingState({
+        utt_id: msg.utt_id,
+        committed_source: msg.committed_source || '',
+        tentative_source: msg.tentative_source || '',
+        committed_translated: msg.committed_translated || '',
+        tentative_translated: msg.tentative_translated || '',
+        speaker: msg.speaker || 'Speaker',
+        source_lang: msg.source_lang || 'en',
+        target_lang: msg.target_lang || 'en',
+        mode: msg.mode || activeMode,
+        t_capture: msg.t_capture || renderTime,
+        latency_breakdown: msg.latency_breakdown,
+      });
+
+      // Compute true spoken -> displayed latency
+      if (msg.t_capture) {
+        const trueLatency = (renderTime - msg.t_capture) * 1000;
+        setTotalSpokenToDisplayMs(trueLatency);
+      }
+
     } else if (msg.type === 'partial') {
-      setPartialText(msg.text || '');
+      setStreamingState((prev) => {
+        if (!prev) {
+          return {
+            utt_id: msg.utt_id || 'stream',
+            committed_source: '',
+            tentative_source: msg.text || '',
+            committed_translated: '',
+            tentative_translated: '',
+            speaker: 'Speaker',
+            source_lang: sourceLang,
+            target_lang: targetLang,
+            mode: activeMode,
+            t_capture: msg.t_capture || renderTime,
+          };
+        }
+        return prev;
+      });
+
     } else if (msg.type === 'final') {
-      setPartialText('');
+      // Utterance finalized at silence endpoint
+      setStreamingState(null);
+
       const newUtt: Utterance = {
         utt_id: msg.utt_id,
         speaker: msg.speaker || 'Speaker',
         speaker_id: msg.speaker_id,
         text: msg.text,
+        translated_text: msg.translated_text || '',
         lang: msg.lang || 'en',
-        task: msg.task || (translateMode ? 'translate' : 'transcribe'),
+        source_lang: sourceLang,
+        target_lang: targetLang,
+        task: msg.task,
         start: msg.start || 0,
         end: msg.end || 0,
         words: msg.words || [],
         latency_ms: msg.latency_ms,
         is_final: true,
         timestamp: Date.now(),
+        t_capture: msg.t_capture,
+        latency_breakdown: msg.latency_breakdown,
       };
+
       setUtterances((prev) => [...prev, newUtt]);
       if (msg.latency_ms) setLatencyMs(msg.latency_ms);
+
+      if (msg.t_capture) {
+        const trueLatency = (renderTime - msg.t_capture) * 1000;
+        setTotalSpokenToDisplayMs(trueLatency);
+      }
+
+      // Auto speech output if in Listening mode and user desires voice
+      if (activeMode === 'listening' && msg.translated_text) {
+        handleSpeakText(msg.translated_text, targetLang);
+      }
+
     } else if (msg.type === 'alert') {
       if (msg.kind === 'name') {
-        const vocative = msg.vocative || 'Dadaji';
+        const vocative = msg.vocative || 'Notice';
         setActiveAlert({ vocative, utt_id: msg.utt_id });
         if (soundAlerts) playGentleChime();
         if (hapticAlerts) triggerHaptic();
 
-        // Mark utterance as addressed to user
         setUtterances((prev) =>
           prev.map((u) => (u.utt_id === msg.utt_id ? { ...u, addressed_to_me: true } : u))
         );
       }
+
     } else if (msg.type === 'suggestions') {
       if (msg.replies && msg.replies.length > 0) {
         setQuickReplies(msg.replies);
       }
+
     } else if (msg.type === 'recap') {
       setCatchupRecap({
         text: msg.text,
@@ -193,6 +288,7 @@ export const App: React.FC = () => {
         speakers: msg.speakers || [],
       });
       setIsCatchupLoading(false);
+
     } else if (msg.type === 'plain_language') {
       setUtterances((prev) =>
         prev.map((u) => (u.utt_id === msg.utt_id ? { ...u, plain_text: msg.plain_text } : u))
@@ -207,6 +303,7 @@ export const App: React.FC = () => {
       setIsListening(false);
     } else {
       try {
+        setHasStartedSession(true);
         await audioCapture.start((buffer) => {
           if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
             wsRef.current.send(buffer);
@@ -214,135 +311,164 @@ export const App: React.FC = () => {
         });
         setIsListening(true);
       } catch (err) {
-        alert('Microphone permission required to transcribe audio.');
+        alert('Microphone permission required to capture audio.');
       }
     }
   };
 
-  // "What did I miss?" Catchup
-  const handleOpenCatchup = () => {
-    setIsCatchupOpen(true);
-    setIsCatchupLoading(true);
+  // Mode switching
+  const handleSelectMode = (mode: AppMode) => {
+    setActiveMode(mode);
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ type: 'catchup' }));
+      wsRef.current.send(JSON.stringify({ type: 'set_mode', mode }));
     }
   };
 
-  // Word correction
+  // Language pair switching
+  const handleSelectSourceLang = (lang: string) => {
+    setSourceLang(lang);
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(
+        JSON.stringify({ type: 'set_language_pair', source_lang: lang, target_lang: targetLang })
+      );
+    }
+  };
+
+  const handleSelectTargetLang = (lang: string) => {
+    setTargetLang(lang);
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(
+        JSON.stringify({ type: 'set_language_pair', source_lang: sourceLang, target_lang: lang })
+      );
+    }
+  };
+
+  const handleSwapLanguages = () => {
+    if (sourceLang === 'auto') return;
+    const oldSrc = sourceLang;
+    const oldTgt = targetLang;
+    setSourceLang(oldTgt);
+    setTargetLang(oldSrc);
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(
+        JSON.stringify({ type: 'set_language_pair', source_lang: oldTgt, target_lang: oldSrc })
+      );
+    }
+  };
+
+  // Offline speech synthesis
+  const handleSpeakText = (text: string, lang: string) => {
+    if ('speechSynthesis' in window && text) {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = lang;
+      utterance.rate = 1.0;
+      window.speechSynthesis.speak(utterance);
+    }
+  };
+
+  // Lexicon Actions
+  const handleAddLexiconWord = async (word: string, category: string) => {
+    await addLexiconWord(word, category);
+    await loadLexicon();
+  };
+
+  const handleDeleteLexiconWord = async (word: string) => {
+    await deleteLexiconWord(word);
+    await loadLexicon();
+  };
+
+  // Word Correction
   const handleCorrectWord = (word: string, context: string) => {
     setCorrectionTarget({ word, context });
     setIsCorrectionOpen(true);
   };
 
-  const handleSaveCorrection = async (original: string, corrected: string, context: string) => {
-    try {
-      await recordCorrection(original, corrected, context);
-      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-        wsRef.current.send(
-          JSON.stringify({
-            type: 'correct_word',
-            original,
-            corrected,
-            context,
-          })
-        );
-      }
-      loadLexicon();
-
-      // Update in active stream
-      setUtterances((prev) =>
-        prev.map((u) => {
-          if (u.text.includes(original)) {
-            const updatedText = u.text.replace(new RegExp(original, 'gi'), corrected);
-            return {
-              ...u,
-              text: updatedText,
-              words: u.words?.map((w) =>
-                w.w.toLowerCase() === original.toLowerCase() ? { ...w, w: corrected } : w
-              ),
-            };
-          }
-          return u;
+  const handleSaveCorrection = async (original: string, corrected: string) => {
+    await recordCorrection(original, corrected, correctionTarget.context);
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(
+        JSON.stringify({
+          type: 'correct_word',
+          original,
+          corrected,
+          context: correctionTarget.context,
         })
       );
-    } catch (e) {
-      console.error(e);
     }
+    setUtterances((prev) =>
+      prev.map((u) => {
+        const regex = new RegExp(`\\b${original}\\b`, 'gi');
+        return {
+          ...u,
+          text: u.text.replace(regex, corrected),
+          words: u.words?.map((w) => (w.w.toLowerCase() === original.toLowerCase() ? { ...w, w: corrected } : w)),
+        };
+      })
+    );
+    await loadLexicon();
+    setIsCorrectionOpen(false);
   };
 
-  // Speaker rename
+  // Speaker Renaming
   const handleRenameSpeaker = (speakerId: string, currentName: string) => {
     setRenameTarget({ id: speakerId, name: currentName });
   };
 
   const handleSaveSpeakerRename = async (speakerId: string, newName: string) => {
-    try {
-      await renameSpeakerApi(speakerId, newName);
-      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-        wsRef.current.send(
-          JSON.stringify({
-            type: 'rename_speaker',
-            speaker_id: speakerId,
-            new_name: newName,
-          })
-        );
-      }
-      // Update utterances
-      setUtterances((prev) =>
-        prev.map((u) => (u.speaker === renameTarget?.name ? { ...u, speaker: newName } : u))
+    await renameSpeakerApi(speakerId, newName);
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(
+        JSON.stringify({
+          type: 'rename_speaker',
+          speaker_id: speakerId,
+          new_name: newName,
+        })
       );
-    } catch (e) {
-      console.error(e);
+    }
+    setUtterances((prev) =>
+      prev.map((u) =>
+        (u.speaker_id === speakerId || u.speaker === speakerId || u.speaker === renameTarget?.name)
+          ? { ...u, speaker: newName }
+          : u
+      )
+    );
+    setRenameTarget(null);
+  };
+
+  // Catch-up Recap
+  const handleOpenCatchup = () => {
+    setIsCatchupLoading(true);
+    setIsCatchupOpen(true);
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: 'catchup' }));
     }
   };
 
-  // Lexicon CRUD
-  const handleAddLexiconWord = async (word: string, category: string) => {
-    await addLexiconWord(word, category);
-    loadLexicon();
-  };
-
-  const handleDeleteLexiconWord = async (word: string) => {
-    await deleteLexiconWord(word);
-    loadLexicon();
-  };
-
-  // Toggle live speech translation mode
-  const handleToggleTranslate = () => {
-    setTranslateMode((prev) => {
-      const next = !prev;
-      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-        wsRef.current.send(JSON.stringify({ type: 'set_task', task: next ? 'translate' : 'transcribe' }));
-      }
-      return next;
-    });
-  };
-
-  // Plain language request
+  // Plain Language Simplification
   const handleRequestPlainLanguage = async (uttId: string, text: string) => {
     try {
-      const res = await simplifyPlainLanguageApi(text);
+      const data = await simplifyPlainLanguageApi(text);
       setUtterances((prev) =>
-        prev.map((u) => (u.utt_id === uttId ? { ...u, plain_text: res.plain_text } : u))
+        prev.map((u) => (u.utt_id === uttId ? { ...u, plain_text: data.plain_text } : u))
       );
     } catch (e) {
-      console.error(e);
+      console.debug('Failed to simplify language:', e);
     }
   };
 
+  // Decide if showing onboarding Home screen
+  const showHomeScreen = !hasStartedSession && utterances.length === 0 && !isListening;
+
   return (
-    <div
-      className={`h-screen w-screen flex flex-col bg-slate-950 text-slate-100 ${
-        activeAlert ? 'alert-pulse-amber' : ''
-      }`}
-    >
+    <div className="flex flex-col h-screen w-screen overflow-hidden bg-slate-950 text-slate-100 select-none">
       {/* Top Header */}
       <Header
         isListening={isListening}
         onToggleListening={handleToggleListening}
         deviceRole={deviceRole}
-        translateMode={translateMode}
-        onToggleTranslate={handleToggleTranslate}
+        translateMode={activeMode !== 'captions'}
+        onToggleTranslate={() => setIsModeSheetOpen(true)}
         plainLanguageMode={plainLanguageMode}
         onTogglePlainLanguage={() => setPlainLanguageMode((prev) => !prev)}
         onOpenCatchup={handleOpenCatchup}
@@ -355,7 +481,7 @@ export const App: React.FC = () => {
         latencyMs={latencyMs}
       />
 
-      {/* Addressed-to-Me Notification Banner */}
+      {/* Addressed-to-Me Ambient Notification Banner */}
       {activeAlert && (
         <AddressedAlertBanner
           vocative={activeAlert.vocative}
@@ -363,18 +489,43 @@ export const App: React.FC = () => {
         />
       )}
 
-      {/* Main Live Caption Stream */}
-      <CaptionStream
-        utterances={utterances}
-        partialText={partialText}
-        fontSize={fontSize}
-        fontFamily={fontFamily}
-        lowConfidenceUnderline={lowConfidenceUnderline}
-        plainLanguageMode={plainLanguageMode}
-        onCorrectWord={handleCorrectWord}
-        onRenameSpeaker={handleRenameSpeaker}
-        onRequestPlainLanguage={handleRequestPlainLanguage}
-      />
+      {/* Main View Area */}
+      {showHomeScreen ? (
+        <HomeScreen
+          onStart={handleToggleListening}
+          activeMode={activeMode}
+          onSelectMode={handleSelectMode}
+          sourceLang={sourceLang}
+          targetLang={targetLang}
+          onSelectSourceLang={handleSelectSourceLang}
+          onSelectTargetLang={handleSelectTargetLang}
+          onSwapLanguages={handleSwapLanguages}
+          modelProfile={modelProfile}
+          activeProfileName={activeProfileName}
+        />
+      ) : activeMode === 'conversation' ? (
+        <ConversationView
+          utterances={utterances}
+          streamingState={streamingState}
+          sourceLang={sourceLang}
+          targetLang={targetLang}
+          fontSize={fontSize}
+          onSpeakText={handleSpeakText}
+        />
+      ) : (
+        <CaptionStream
+          utterances={utterances}
+          streamingState={streamingState}
+          fontSize={fontSize}
+          fontFamily={fontFamily}
+          lowConfidenceUnderline={lowConfidenceUnderline}
+          plainLanguageMode={plainLanguageMode}
+          onCorrectWord={handleCorrectWord}
+          onRenameSpeaker={handleRenameSpeaker}
+          onRequestPlainLanguage={handleRequestPlainLanguage}
+          onSpeakText={handleSpeakText}
+        />
+      )}
 
       {/* Quick Replies Drawer */}
       {quickReplies.length > 0 && (
@@ -383,6 +534,31 @@ export const App: React.FC = () => {
           onDismiss={() => setQuickReplies([])}
         />
       )}
+
+      {/* Mode Selection Sheet */}
+      <ModeSelectorSheet
+        isOpen={isModeSheetOpen}
+        onClose={() => setIsModeSheetOpen(false)}
+        activeMode={activeMode}
+        onSelectMode={handleSelectMode}
+        sourceLang={sourceLang}
+        targetLang={targetLang}
+        onSelectSourceLang={handleSelectSourceLang}
+        onSelectTargetLang={handleSelectTargetLang}
+        onSwapLanguages={handleSwapLanguages}
+      />
+
+      {/* Debug Latency HUD (Ctrl+Shift+L) */}
+      <DebugHud
+        isOpen={isDebugHudOpen}
+        onClose={() => setIsDebugHudOpen(false)}
+        latencyBreakdown={streamingState?.latency_breakdown}
+        modelProfile={modelProfile}
+        activeMode={activeMode}
+        sourceLang={sourceLang}
+        targetLang={targetLang}
+        totalSpokenToDisplayMs={totalSpokenToDisplayMs}
+      />
 
       {/* Modals */}
       <CatchupModal

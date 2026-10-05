@@ -33,3 +33,7 @@ eval/recordings/raw/
 # OS
 .DS_Store
 Thumbs.db
+
+# Local certs and scratch
+certs/
+scratch/

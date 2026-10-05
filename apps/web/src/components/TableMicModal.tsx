@@ -59,7 +59,7 @@ export const TableMicModal: React.FC<TableMicModalProps> = ({
 
         <h3 className="text-xl font-bold text-white mb-1">Table-Mic Mode</h3>
         <p className="text-sm text-slate-400 mb-6">
-          Place your phone in the center of the dining table as the microphone. This tablet stays in front of Dadaji as the big display.
+          Place your phone in the center of the table as the microphone while this screen stays visible as the display.
         </p>
 
         {/* QR Code Container */}
