@@ -2,7 +2,7 @@
 
 > **Hearth is a fully offline, local desktop and web app providing live captions and real-time speech translation of spoken conversation with zero cloud dependencies, zero telemetry, and zero data leaving your device.**
 
-[![Hearth CI](https://github.com/satyamshh967/Hearth-Live-Captioning-System/actions/workflows/ci.yml/badge.svg)](https://github.com/satyamshh967/Hearth-Live-Captioning-System/actions/workflows/ci.yml)
+[![Hearth CI](https://github.com/satyamshh967/hearth/actions/workflows/ci.yml/badge.svg)](https://github.com/satyamshh967/hearth/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Privacy](https://img.shields.io/badge/Privacy-100%25_Offline_Zero_Telemetry-emerald.svg)](docs/privacy.md)
 [![Status](https://img.shields.io/badge/Status-Production_Ready-green.svg)](docs/benchmarks.md)
