@@ -3,7 +3,11 @@ import uuid
 import logging
 from typing import Optional, List
 import numpy as np
-from faster_whisper import WhisperModel
+try:
+    from faster_whisper import WhisperModel
+except Exception as _fw_err:
+    WhisperModel = None
+
 from .provider import ASRProvider, ASRResult, WordConfidence
 from ..config import ASRConfig
 
@@ -13,6 +17,8 @@ logger = logging.getLogger(__name__)
 class FasterWhisperProvider(ASRProvider):
     def __init__(self, config: ASRConfig):
         self.config = config
+        if WhisperModel is None:
+            raise RuntimeError("faster_whisper is not available in this environment (e.g. DLL/AV policy blocked).")
         logger.info(f"Initializing FasterWhisperProvider: model={config.model_size}, device={config.device}, compute={config.compute_type}")
         
         device = config.device

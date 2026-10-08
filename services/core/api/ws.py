@@ -148,6 +148,7 @@ class HearthWSServer:
             cpu_threads=config.asr.cpu_threads,
             step_duration_sec=config.asr.streaming_step_sec,
             initial_prompt=self.profile_manager.get_active_profile().get_prompt_biasing_string(),
+            fallback_asr=self.asr_provider,
         )
 
         self.manager = ConnectionManager()
@@ -314,8 +315,11 @@ class HearthWSServer:
         if len(samples) == 0:
             return
 
+        # 1. ALWAYS add audio samples immediately into session buffer (never dropped!)
+        state.streaming_session.add_audio_samples(samples, t_capture)
+
         rms = np.sqrt(np.mean((samples * 32768.0) ** 2))
-        energy_threshold = 400.0
+        energy_threshold = 140.0  # sensitive to natural conversational speech
 
         now = time.time()
         if rms > energy_threshold:
@@ -326,26 +330,25 @@ class HearthWSServer:
                 state.first_capture_time = t_capture
                 state.current_utt_id = str(uuid.uuid4())[:8]
 
-        # Feed frame into StreamingASREngine
+        # 2. Trigger decode step if ready and worker is idle
         task = "translate" if (state.mode == "listening" and state.target_lang == "en") else "transcribe"
         lang = None if state.source_lang == "auto" else state.source_lang
 
-        if not state.is_processing_chunk:
+        if not state.is_processing_chunk and state.streaming_session.can_decode():
             state.is_processing_chunk = True
             asyncio.create_task(
-                self._run_streaming_step(state, samples, t_capture=t_capture, task=task, language=lang)
+                self._run_streaming_step(state, t_capture=t_capture, task=task, language=lang)
             )
 
-        # Utterance endpoint check (silence duration >= 400ms or 8s max duration)
+        # 3. Utterance endpoint check (silence duration >= 500ms)
         silence_duration = now - state.last_speech_time
-        if state.is_speaking and silence_duration >= 0.40:
+        if state.is_speaking and silence_duration >= 0.50:
             state.is_speaking = False
             asyncio.create_task(self._run_endpoint_finalization(state))
 
     async def _run_streaming_step(
         self,
         state: AudioSessionState,
-        samples: np.ndarray,
         t_capture: float,
         task: str,
         language: Optional[str]
@@ -354,9 +357,7 @@ class HearthWSServer:
         try:
             t0 = time.time()
             hyp: Optional[StreamingHypothesis] = await asyncio.to_thread(
-                state.streaming_session.add_audio_frame,
-                samples,
-                t_capture,
+                state.streaming_session.decode_step,
                 task=task,
                 language=language,
             )
@@ -439,6 +440,12 @@ class HearthWSServer:
             logger.debug(f"Streaming step error: {e}")
         finally:
             state.is_processing_chunk = False
+            # Self-pump: if more audio accumulated while decoding, immediately run next decode step
+            if state.streaming_session.can_decode():
+                state.is_processing_chunk = True
+                asyncio.create_task(
+                    self._run_streaming_step(state, t_capture=t_capture, task=task, language=language)
+                )
 
     async def _run_endpoint_finalization(self, state: AudioSessionState):
         """Finalizes the utterance upon VAD endpoint (silence), refines translation, and persists."""

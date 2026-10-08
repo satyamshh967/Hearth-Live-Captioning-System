@@ -61,8 +61,12 @@ if use_mock_asr or config.asr.provider == "mock":
     logger.info("Initializing MockASRProvider (Fast / Testing Mode)")
     asr_provider = MockASRProvider()
 else:
-    logger.info(f"Initializing FasterWhisperProvider ({config.asr.model_size})")
-    asr_provider = FasterWhisperProvider(config.asr)
+    try:
+        logger.info(f"Initializing FasterWhisperProvider ({config.asr.model_size})")
+        asr_provider = FasterWhisperProvider(config.asr)
+    except Exception as exc:
+        logger.warning(f"Could not initialize FasterWhisperProvider ({exc}), falling back to MockASRProvider")
+        asr_provider = MockASRProvider()
 
 # Initialize Diarizer
 diarizer = LightweightCentroidDiarizer(config.diarization)

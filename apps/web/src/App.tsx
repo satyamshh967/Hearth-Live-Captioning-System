@@ -98,6 +98,7 @@ export const App: React.FC = () => {
 
   // WebSocket Ref
   const wsRef = useRef<WebSocket | null>(null);
+  const speechRecRef = useRef<any>(null);
 
   // Keyboard Shortcuts: Ctrl+Shift+L for Debug HUD, Space for mic start/stop
   useEffect(() => {
@@ -299,11 +300,56 @@ export const App: React.FC = () => {
   // Toggle mic listening
   const handleToggleListening = async () => {
     if (isListening) {
+      if (speechRecRef.current) {
+        try {
+          speechRecRef.current.stop();
+        } catch (_) {}
+        speechRecRef.current = null;
+      }
       audioCapture.stop();
       setIsListening(false);
     } else {
       try {
         setHasStartedSession(true);
+
+        // Instant client-side speech recognition for true zero-delay visual captions
+        const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+        if (SpeechRec) {
+          try {
+            const sr = new SpeechRec();
+            sr.continuous = true;
+            sr.interimResults = true;
+            sr.lang = sourceLang === 'auto' ? 'en-US' : sourceLang;
+            sr.onresult = (e: any) => {
+              let interimText = '';
+              for (let i = e.resultIndex; i < e.results.length; ++i) {
+                if (!e.results[i].isFinal) {
+                  interimText += e.results[i][0].transcript;
+                }
+              }
+              if (interimText.trim()) {
+                setStreamingState((prev) => ({
+                  utt_id: prev?.utt_id || 'live-instant',
+                  committed_source: prev?.committed_source || '',
+                  tentative_source: interimText,
+                  committed_translated: prev?.committed_translated || '',
+                  tentative_translated: prev?.tentative_translated || '',
+                  speaker: prev?.speaker || 'You',
+                  source_lang: sourceLang,
+                  target_lang: targetLang,
+                  mode: activeMode,
+                  t_capture: Date.now() / 1000,
+                }));
+              }
+            };
+            sr.onerror = () => {};
+            sr.start();
+            speechRecRef.current = sr;
+          } catch (srErr) {
+            console.debug('Client WebSpeech engine init:', srErr);
+          }
+        }
+
         await audioCapture.start((buffer) => {
           if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
             wsRef.current.send(buffer);

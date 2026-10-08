@@ -14,7 +14,11 @@ import re
 from dataclasses import dataclass, field
 from typing import List, Optional, Tuple, Dict
 import numpy as np
-from faster_whisper import WhisperModel
+
+try:
+    from faster_whisper import WhisperModel
+except Exception:
+    WhisperModel = None
 
 
 def normalize_token(w: str) -> str:
@@ -52,6 +56,7 @@ class StreamingASREngine:
         min_context_sec: float = 0.40,
         max_context_sec: float = 2.50,
         initial_prompt: Optional[str] = None,
+        fallback_asr: Optional[object] = None,
     ):
         self.model_size = model_size
         self.step_duration_sec = step_duration_sec
@@ -59,16 +64,23 @@ class StreamingASREngine:
         self.max_context_sec = max_context_sec
         self.initial_prompt = initial_prompt
         self.sample_rate = 16000
+        self.fallback_asr = fallback_asr
 
         # Warmed model resident in memory
-        self.model = WhisperModel(
-            model_size,
-            device=device,
-            compute_type=compute_type,
-            cpu_threads=cpu_threads,
-            num_workers=1,
-            download_root=None,
-        )
+        if WhisperModel is not None:
+            try:
+                self.model = WhisperModel(
+                    model_size,
+                    device=device,
+                    compute_type=compute_type,
+                    cpu_threads=cpu_threads,
+                    num_workers=1,
+                    download_root=None,
+                )
+            except Exception:
+                self.model = None
+        else:
+            self.model = None
 
     def create_session(self, initial_prompt: Optional[str] = None) -> "StreamingSession":
         prompt = initial_prompt or self.initial_prompt
@@ -94,17 +106,8 @@ class StreamingSession:
         self.is_active: bool = False
         self.total_processed_samples: int = 0
 
-    def add_audio_frame(
-        self,
-        audio_frame: np.ndarray,
-        t_capture: float,
-        task: str = "transcribe",
-        language: Optional[str] = None,
-    ) -> Optional[StreamingHypothesis]:
-        """
-        Ingest a 20ms - 100ms audio frame (16kHz float32).
-        Returns a StreamingHypothesis if a decode step was executed, else None.
-        """
+    def add_audio_samples(self, audio_frame: np.ndarray, t_capture: float):
+        """Append incoming audio samples immediately to internal buffer without blocking."""
         if self.t_first_capture == 0.0:
             self.t_first_capture = t_capture
 
@@ -116,60 +119,92 @@ class StreamingSession:
         self.audio_buffer = np.concatenate([self.audio_buffer, audio_frame])
         self.total_processed_samples += len(audio_frame)
 
-        # Check if enough audio accumulated for a decode step (e.g. 250ms)
+    def can_decode(self) -> bool:
+        """Checks if enough audio and time have elapsed for a new decode step."""
         min_samples = int(self.engine.min_context_sec * self.sample_rate)
-        step_samples = int(self.engine.step_duration_sec * self.sample_rate)
-
         now = time.time()
         time_since_last_decode = now - self.last_decode_time
+        return len(self.audio_buffer) >= min_samples and time_since_last_decode >= (self.engine.step_duration_sec * 0.7)
 
-        # Bounded decode rate: don't decode more often than step_duration_sec
-        if len(self.audio_buffer) < min_samples or time_since_last_decode < (self.engine.step_duration_sec * 0.8):
+    def add_audio_frame(
+        self,
+        audio_frame: np.ndarray,
+        t_capture: float,
+        task: str = "transcribe",
+        language: Optional[str] = None,
+    ) -> Optional[StreamingHypothesis]:
+        """Ingest audio frame and run decode step if ready."""
+        self.add_audio_samples(audio_frame, t_capture)
+        if self.can_decode():
+            return self.decode_step(task=task, language=language)
+        return None
+
+    def decode_step(
+        self,
+        task: str = "transcribe",
+        language: Optional[str] = None,
+    ) -> Optional[StreamingHypothesis]:
+        """Runs greedy Whisper decode over active audio buffer and commits stable prefix."""
+        min_samples = int(self.engine.min_context_sec * self.sample_rate)
+        if len(self.audio_buffer) < min_samples:
+            return None
+        if self.engine.model is None and self.engine.fallback_asr is None:
             return None
 
-        self.last_decode_time = now
+        self.last_decode_time = time.time()
 
         # Restrict context window to max_context_sec
         max_samples = int(self.engine.max_context_sec * self.sample_rate)
         active_audio = self.audio_buffer[-max_samples:]
 
-        # Run fast greedy decode
+        # Run fast decode
         t0 = time.time()
-        
-        # Build prompt: prior committed text provides context conditioning
-        committed_prefix = " ".join([w.word for w in self.committed_words[-10:]])
-        full_prompt = f"{self.prompt} {committed_prefix}".strip() if (self.prompt or committed_prefix) else None
-
-        segments, info = self.engine.model.transcribe(
-            active_audio,
-            beam_size=1,
-            language=language,
-            task=task,
-            initial_prompt=full_prompt,
-            vad_filter=False,
-            word_timestamps=True,
-            temperature=0.0,
-            compression_ratio_threshold=2.4,
-            no_speech_threshold=0.6,
-            repetition_penalty=1.15,
-            condition_on_previous_text=False,
-        )
-
         extracted_words: List[StreamingWord] = []
-        last_word_added = ""
-        for seg in segments:
-            if seg.words:
-                for w in seg.words:
-                    word_str = w.word.strip()
-                    if word_str and word_str.lower() != last_word_added.lower():
-                        extracted_words.append(StreamingWord(
-                            word=word_str,
-                            start=round(float(w.start), 2),
-                            end=round(float(w.end), 2),
-                            confidence=round(float(w.probability), 3),
-                            is_committed=False,
-                        ))
-                        last_word_added = word_str
+
+        if self.engine.model is not None:
+            # Build prompt: prior committed text provides context conditioning
+            committed_prefix = " ".join([w.word for w in self.committed_words[-10:]])
+            full_prompt = f"{self.prompt} {committed_prefix}".strip() if (self.prompt or committed_prefix) else None
+
+            segments, info = self.engine.model.transcribe(
+                active_audio,
+                beam_size=1,
+                language=language,
+                task=task,
+                initial_prompt=full_prompt,
+                vad_filter=False,
+                word_timestamps=True,
+                temperature=0.0,
+                compression_ratio_threshold=2.4,
+                no_speech_threshold=0.6,
+                repetition_penalty=1.15,
+                condition_on_previous_text=False,
+            )
+
+            last_word_added = ""
+            for seg in segments:
+                if seg.words:
+                    for w in seg.words:
+                        word_str = w.word.strip()
+                        if word_str and word_str.lower() != last_word_added.lower():
+                            extracted_words.append(StreamingWord(
+                                word=word_str,
+                                start=round(float(w.start), 2),
+                                end=round(float(w.end), 2),
+                                confidence=round(float(w.probability), 3),
+                                is_committed=False,
+                            ))
+                            last_word_added = word_str
+        elif self.engine.fallback_asr is not None:
+            res = self.engine.fallback_asr.transcribe(active_audio, task=task)
+            for w in res.words:
+                extracted_words.append(StreamingWord(
+                    word=w.word,
+                    start=round(float(w.start), 2),
+                    end=round(float(w.end), 2),
+                    confidence=round(float(w.confidence), 3),
+                    is_committed=False,
+                ))
 
         t_asr_end = time.time()
         asr_inf_ms = (t_asr_end - t0) * 1000

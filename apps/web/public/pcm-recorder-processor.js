@@ -1,11 +1,13 @@
 // AudioWorkletProcessor for Hearth
-// Captures mic input, downsamples to 16000 Hz mono, and converts to Int16 PCM buffers.
+// Captures mic input, downsamples to 16000 Hz mono, buffers into 40ms frames, and converts to Int16 PCM buffers.
 
 class PCMRecorderProcessor extends AudioWorkletProcessor {
   constructor() {
     super();
     this.targetSampleRate = 16000;
-    this.buffer = [];
+    this.chunkSize = 640; // 40ms at 16kHz
+    this.buffer = new Float32Array(this.chunkSize);
+    this.bufferIndex = 0;
   }
 
   process(inputs, outputs, parameters) {
@@ -16,12 +18,12 @@ class PCMRecorderProcessor extends AudioWorkletProcessor {
     const sampleRateRatio = sampleRate / this.targetSampleRate;
 
     // Resample to 16kHz
+    let resampled;
     if (sampleRateRatio === 1) {
-      this._emitChunk(channelData);
+      resampled = channelData;
     } else {
-      // Linear interpolation downsampling
       const outputLength = Math.floor(channelData.length / sampleRateRatio);
-      const resampled = new Float32Array(outputLength);
+      resampled = new Float32Array(outputLength);
       for (let i = 0; i < outputLength; i++) {
         const originalIndex = i * sampleRateRatio;
         const indexFloor = Math.floor(originalIndex);
@@ -29,7 +31,15 @@ class PCMRecorderProcessor extends AudioWorkletProcessor {
         const fraction = originalIndex - indexFloor;
         resampled[i] = channelData[indexFloor] * (1 - fraction) + channelData[indexCeil] * fraction;
       }
-      this._emitChunk(resampled);
+    }
+
+    // Accumulate into 40ms chunks
+    for (let i = 0; i < resampled.length; i++) {
+      this.buffer[this.bufferIndex++] = resampled[i];
+      if (this.bufferIndex >= this.chunkSize) {
+        this._emitChunk(this.buffer);
+        this.bufferIndex = 0;
+      }
     }
 
     return true;

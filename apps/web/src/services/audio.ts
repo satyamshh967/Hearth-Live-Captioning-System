@@ -44,7 +44,10 @@ export class AudioCaptureService {
           }
         };
         source.connect(this.workletNode);
-        this.workletNode.connect(this.audioContext.destination);
+        const muteGain = this.audioContext.createGain();
+        muteGain.gain.value = 0.0;
+        this.workletNode.connect(muteGain);
+        muteGain.connect(this.audioContext.destination);
       } catch (workletError) {
         console.warn('AudioWorklet module failed, falling back to ScriptProcessor:', workletError);
         // Fallback: ScriptProcessorNode
@@ -64,7 +67,10 @@ export class AudioCaptureService {
           this.onDataCallback(payload);
         };
         source.connect(this.scriptProcessor);
-        this.scriptProcessor.connect(this.audioContext.destination);
+        const muteGain = this.audioContext.createGain();
+        muteGain.gain.value = 0.0;
+        this.scriptProcessor.connect(muteGain);
+        muteGain.connect(this.audioContext.destination);
       }
 
       this.isCapturing = true;
